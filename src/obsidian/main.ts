@@ -306,13 +306,13 @@ function renderMindmap(
     attr: { title: "Fullscreen" },
   });
   fsBtn.onclick = () => {
-    if (document.fullscreenElement) document.exitFullscreen();
-    else wrapEl.requestFullscreen();
+    if (activeDocument.fullscreenElement) void activeDocument.exitFullscreen();
+    else void wrapEl.requestFullscreen();
   };
-  plugin.registerDomEvent(document, "fullscreenchange", () => {
-    requestAnimationFrame(fit);
+  plugin.registerDomEvent(activeDocument, "fullscreenchange", () => {
+    activeWindow.requestAnimationFrame(fit);
     // left fullscreen with a deferred persist queued -> flush it now
-    if (document.fullscreenElement !== wrapEl && pendingWrite) {
+    if (activeDocument.fullscreenElement !== wrapEl && pendingWrite) {
       const cfgToWrite = pendingWrite;
       pendingWrite = null;
       writeBlock(cfgToWrite).catch(reportViewError);
@@ -396,7 +396,7 @@ function renderMindmap(
   async function writeBlock(nextCfg: MapCfg) {
     // Defer while fullscreen: the write would re-render the block and drop us out of
     // fullscreen. The UI already reflects the change in-place; only persistence waits.
-    if (document.fullscreenElement === wrapEl) {
+    if (activeDocument.fullscreenElement === wrapEl) {
       pendingWrite = nextCfg;
       return;
     }
@@ -949,5 +949,5 @@ function renderMindmap(
     draw();
   }
   // first fit after the element has real dimensions
-  requestAnimationFrame(fit);
+  activeWindow.requestAnimationFrame(fit);
 }

@@ -1,7 +1,7 @@
 {
   "name": "markdown-mindmap",
   "displayName": "Markdown Mindmap",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Configurable mind maps / leveled trees from note frontmatter links. Obsidian plugin + VS Code extension over one shared core.",
   "main": "dist/extension.js",
   "engines": {

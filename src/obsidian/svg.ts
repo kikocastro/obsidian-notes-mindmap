@@ -7,7 +7,7 @@ export const svgEl = (
   attrs: Record<string, any>,
   parent: Element
 ): SVGElement => {
-  const e = document.createElementNS(NS, tag) as SVGElement;
+  const e = activeDocument.createElementNS(NS, tag);
   for (const k in attrs) e.setAttribute(k, String(attrs[k]));
   parent.appendChild(e);
   return e;

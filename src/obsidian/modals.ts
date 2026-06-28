@@ -32,8 +32,8 @@ class PromptModal extends Modal {
     const { contentEl, modalEl } = this;
     // same fullscreen re-home as NoteModal: the modal mounts on body, hidden by the
     // fullscreen layer, so move it inside the fullscreen element.
-    if (document.fullscreenElement)
-      document.fullscreenElement.appendChild(this.containerEl);
+    if (activeDocument.fullscreenElement)
+      activeDocument.fullscreenElement.appendChild(this.containerEl);
     modalEl.addClass("mm-prompt");
     contentEl.createEl("h3", { text: this.heading });
     const input = contentEl.createEl("input", {
@@ -88,8 +88,8 @@ class ConfirmModal extends Modal {
   }
   override onOpen() {
     const { contentEl, modalEl } = this;
-    if (document.fullscreenElement)
-      document.fullscreenElement.appendChild(this.containerEl);
+    if (activeDocument.fullscreenElement)
+      activeDocument.fullscreenElement.appendChild(this.containerEl);
     modalEl.addClass("mm-prompt");
     contentEl.createEl("h3", { text: this.message });
     const row = contentEl.createDiv({ cls: "mm-prompt-actions" });
@@ -185,8 +185,8 @@ export class HelpModal extends Modal {
   override async onOpen() {
     this.comp.load();
     const { contentEl, modalEl } = this;
-    if (document.fullscreenElement)
-      document.fullscreenElement.appendChild(this.containerEl);
+    if (activeDocument.fullscreenElement)
+      activeDocument.fullscreenElement.appendChild(this.containerEl);
     modalEl.addClass("mm-modal");
     contentEl.empty();
     const body = contentEl.createDiv({ cls: "mm-note markdown-rendered" });
@@ -219,8 +219,8 @@ export class NoteModal extends Modal {
     const { contentEl, modalEl } = this;
     // ponytail: in fullscreen the modal mounts on document.body, which the fullscreen layer hides;
     // re-home its container inside the fullscreen element so the dialog is actually visible.
-    if (document.fullscreenElement)
-      document.fullscreenElement.appendChild(this.containerEl);
+    if (activeDocument.fullscreenElement)
+      activeDocument.fullscreenElement.appendChild(this.containerEl);
     modalEl.addClass("mm-modal");
     contentEl.empty();
     const n = this.node;
@@ -258,7 +258,7 @@ export class NoteModal extends Modal {
       text: "Open note ↗",
     });
     open.onclick = () => {
-      this.app.workspace.getLeaf("tab").openFile(this.file);
+      void this.app.workspace.getLeaf("tab").openFile(this.file);
       this.close();
     };
     const focus = actions.createEl("button", {
