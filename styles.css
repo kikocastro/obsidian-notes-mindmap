@@ -16,88 +16,108 @@
 /* vertical sidebar pinned to the left edge of the stage */
 .mm-toolbar {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  bottom: 8px;
+  top: 10px;
+  left: 10px;
+  bottom: 10px;
   z-index: 3;
-  width: 220px;
+  width: 224px;
   display: flex;
   flex-direction: column;
   flex-wrap: nowrap;
   align-items: stretch;
-  gap: 6px;
-  padding: 10px;
+  gap: 8px;
+  padding: 12px;
   overflow-y: auto;
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
   font-size: 12px;
 }
-.mm-bartoggle {
-  align-self: flex-start;
-}
-.mm-toolbar .mm-title {
-  font-weight: 600;
-  padding-bottom: 8px;
+
+/* header: title on the left, collapse control hugging the right edge */
+.mm-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--background-modifier-border);
 }
-.mm-spacer {
-  flex: 1 1 auto;
+.mm-toolbar .mm-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--text-normal);
+}
+.mm-bartoggle {
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
-/* collapsed: shrink to the toggle button and stop covering the stage */
+/* collapsed: shrink to just the header toggle and stop covering the stage */
 .mm-toolbar.mm-bar-collapsed {
   width: auto;
   bottom: auto;
+  gap: 0;
+  padding: 8px;
   overflow: visible;
 }
-.mm-toolbar.mm-bar-collapsed > *:not(.mm-bartoggle) {
+.mm-toolbar.mm-bar-collapsed > *:not(.mm-head) {
+  display: none;
+}
+.mm-toolbar.mm-bar-collapsed .mm-head {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.mm-toolbar.mm-bar-collapsed .mm-title {
   display: none;
 }
 
 .mm-search {
   font-size: 12px;
-  padding: 4px 9px;
-  border-radius: 7px;
+  padding: 6px 10px;
+  border-radius: 8px;
   background: var(--background-primary);
   color: var(--text-normal);
   border: 1px solid var(--background-modifier-border);
-  min-width: 150px;
 }
 .mm-search:focus {
   outline: none;
   border-color: var(--interactive-accent);
 }
 
-/* multiselect filter: a labelled group of toggle chips. In the sidebar each group
-   is a full-width block, label on its own row, chips wrapping below, divided by a rule. */
-.mm-fltgroup {
+/* multiselect filter: a labelled group of toggle chips. Sections are set apart by
+   whitespace and their uppercase label, not rules, to keep the rail calm. */
+.mm-fltgroup,
+.mm-viewgroup {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   padding-top: 8px;
-  border-top: 1px solid var(--background-modifier-border);
 }
 .mm-fltlabel {
   flex-basis: 100%;
   color: var(--text-faint);
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.8px;
   font-size: 9px;
-  font-weight: 600;
-  margin-bottom: 2px;
+  font-weight: 700;
+  margin-bottom: 3px;
 }
 .mm-toolbar .mm-chip {
   font-size: 11px;
-  padding: 2px 9px;
-  border-radius: 20px;
+  padding: 3px 10px;
+  border-radius: 999px;
   line-height: 1.5;
   cursor: pointer;
   background: transparent;
   color: var(--text-muted);
   border: 1px solid var(--background-modifier-border);
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease;
 }
 .mm-toolbar .mm-chip:hover {
   background: var(--background-modifier-hover);
@@ -107,36 +127,47 @@
   background: var(--interactive-accent);
   color: var(--text-on-accent);
   border-color: var(--interactive-accent);
-  font-weight: 500;
-}
-.mm-viewgroup {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  padding-top: 8px;
-  border-top: 1px solid var(--background-modifier-border);
+  font-weight: 600;
 }
 .mm-viewselect {
   flex-basis: 100%;
   font-size: 12px;
-  padding: 4px 9px;
-  border-radius: 7px;
+  padding: 6px 10px;
+  border-radius: 8px;
   background: var(--background-primary);
   color: var(--text-normal);
   border: 1px solid var(--background-modifier-border);
+  text-overflow: ellipsis;
+}
+/* Saved-views actions read as one control: full-width Save, then an equal
+   Edit/Delete pair under the dropdown. Bordered so they hold shape even when
+   disabled (no view selected) instead of floating loose in the rail. */
+.mm-viewgroup .mm-viewsave {
+  flex-basis: 100%;
+  text-align: center;
+  border-color: var(--background-modifier-border);
+}
+.mm-viewgroup button:not(.mm-viewsave) {
+  flex: 1 1 0;
+  text-align: center;
+  border-color: var(--background-modifier-border);
 }
 
-/* Action buttons (Save / Edit / Delete / Reset) recede: ghost until hovered, so filter chips lead the eye. */
+/* Action buttons (Save / Edit / Delete / Reset) recede: ghost until hovered,
+   left-aligned, so filter chips lead the eye. */
 .mm-toolbar button {
   font-size: 12px;
-  padding: 4px 9px;
-  border-radius: 7px;
+  text-align: left;
+  padding: 5px 9px;
+  border-radius: 8px;
   cursor: pointer;
   background: transparent;
   color: var(--text-muted);
   border: 1px solid transparent;
   box-shadow: none;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
 }
 .mm-toolbar button:hover {
   background: var(--background-modifier-hover);
@@ -148,29 +179,53 @@
   border-color: var(--interactive-accent);
 }
 .mm-toolbar button:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: default;
 }
 .mm-toolbar button:disabled:hover {
   background: transparent;
   color: var(--text-muted);
 }
+
+/* footer: utilities pinned to the bottom, set off by a rule so the gap above reads as deliberate */
+.mm-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* focus banner: the label ellipsises, the ✕ always stays visible at the right */
 .mm-toolbar .mm-focus-ticket {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   background: var(--interactive-accent);
   color: var(--text-on-accent);
   border-color: var(--interactive-accent);
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .mm-toolbar .mm-focus-ticket:hover {
   background: var(--interactive-accent-hover);
   color: var(--text-on-accent);
 }
-.mm-icon {
+.mm-focus-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mm-focus-x {
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+.mm-toolbar .mm-icon {
   font-size: 14px;
   line-height: 1;
+  text-align: center;
   padding: 4px 8px;
 }
 /* help reads as a faint grey link, not a button */
@@ -307,6 +362,10 @@
   width: min(760px, 92vw);
   transform-origin: center;
 }
+/* keep the close button above the sticky header (z-index:2) so it isn't covered */
+.modal.mm-modal .modal-close-button {
+  z-index: 3;
+}
 .mm-prompt-input {
   width: 100%;
   margin: 4px 0 14px;
@@ -321,6 +380,13 @@
   padding: 2px 0 12px 14px;
   margin-bottom: 10px;
   border-bottom: 1px solid var(--background-modifier-border);
+  /* keep badge + title pinned while the note body scrolls under it.
+     box-shadow covers the modal's top padding so content can't peek above. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--background-primary);
+  box-shadow: 0 -24px 0 var(--background-primary);
 }
 .mm-note-badges {
   display: flex;

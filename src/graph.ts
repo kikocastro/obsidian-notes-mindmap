@@ -106,6 +106,7 @@ export interface MapCfg {
   layout?: LayoutCfg;
   properties?: boolean;
   views?: SavedViewCfg[];
+  activeView?: string; // name of the saved view to auto-select on (re)render
 }
 
 // the minimal note shape the pure logic needs (a TFile-free stand-in)
@@ -640,6 +641,12 @@ export const viewNameTaken = (
   name: string,
   exceptName?: string
 ): boolean => views.some((v) => v.name === name && v.name !== exceptName);
+
+// The saved view to restore on (re)render, or null if activeView is unset or
+// names a deleted view (stale guard). In-memory active state is gone after an
+// Obsidian reload, so this is what keeps the picked view selected.
+export const initialView = (cfg: MapCfg): SavedViewCfg | null =>
+  (cfg.activeView && cfg.views?.find((v) => v.name === cfg.activeView)) || null;
 
 // ---- search --------------------------------------------------------------
 

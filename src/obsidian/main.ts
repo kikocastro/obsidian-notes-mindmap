@@ -1,15 +1,20 @@
 import {
   App,
-  Component,
   MarkdownPostProcessorContext,
-  MarkdownRenderer,
-  Modal,
   Notice,
   Plugin,
   TFile,
   parseYaml,
   stringifyYaml,
 } from "obsidian";
+import { svgEl } from "./svg";
+import {
+  LinkRow,
+  HelpModal,
+  NoteModal,
+  promptText,
+  confirmModal,
+} from "./modals";
 import {
   AUTO_COLORS,
   MapCfg,
@@ -29,6 +34,7 @@ import {
   searchMatch,
   upsertView,
   viewNameTaken,
+  initialView,
   wrap,
   subWidth,
   validateConfig,
@@ -37,20 +43,8 @@ import {
 // ============================================================================
 // Markdown Mindmap — render a leveled left->right tree from note frontmatter links.
 // One ```mindmap code block = one map. Config is inline YAML (see README).
-// Pure logic lives in src/graph.ts; this file owns the SVG/DOM and the Modal.
+// Pure logic lives in src/graph.ts; SVG/DOM helpers in ./svg, Modals in ./modals.
 // ============================================================================
-
-const NS = "http://www.w3.org/2000/svg";
-
-// a neighbour (parent/child/sibling), resolved for the note dialog's "Linked" section
-interface LinkRow {
-  id: string;
-  title: string;
-  levelLabel: string;
-  color: string;
-  secondary: boolean;
-  relation: "parent" | "child" | "sibling";
-}
 
 export default class NotesMindmapPlugin extends Plugin {
   override async onload() {
@@ -68,25 +62,7 @@ export default class NotesMindmapPlugin extends Plugin {
   }
 }
 
-// ---- helpers -------------------------------------------------------------
-
-const svgEl = (
-  tag: string,
-  attrs: Record<string, any>,
-  parent: Element
-): SVGElement => {
-  const e = document.createElementNS(NS, tag) as SVGElement;
-  for (const k in attrs) e.setAttribute(k, String(attrs[k]));
-  parent.appendChild(e);
-  return e;
-};
-
 // ---- core ----------------------------------------------------------------
-
-// Persisting a view rewrites the note, so Obsidian re-renders the block and tears down
-// the fullscreen element, dropping us out of fullscreen. We flag the source path before
-// the write and the fresh render re-enters fullscreen on its new wrapEl.
-const reenterFullscreen = new Set<string>();
 
 // The active view + filter selection, so a save keeps its filters applied (the persist
 // re-render would otherwise reset them) and returning to a note reopens its last view.
@@ -139,6 +115,9 @@ function renderMindmap(
   // ponytail: card heights come from orderAndLayout (core), which still reserves the label
   // strip, so label-bearing cards stay 24px taller in this mode. Recompute layout per-toggle if it bugs you.
   let titleOnly = false;
+  // a note-write while fullscreen makes Obsidian re-render the block and tear down the
+  // fullscreen element, so we stash the latest cfg here and flush it on fullscreen exit.
+  let pendingWrite: MapCfg | null = null;
 
   const optionsByProp = filterOptions(nodes, cfg);
   const chipByPropValue: Record<string, Record<string, HTMLButtonElement>> = {};
@@ -147,26 +126,25 @@ function renderMindmap(
   host.empty();
   const wrapEl = host.createDiv({ cls: "mm-wrap" });
   if (cfg.height) wrapEl.style.height = cfg.height + "px";
-  // re-enter fullscreen after a persist-triggered re-render (see reenterFullscreen)
-  if (reenterFullscreen.delete(ctx.sourcePath))
-    requestAnimationFrame(() => wrapEl.requestFullscreen().catch(() => {}));
   const toolbar = wrapEl.createDiv({ cls: "mm-toolbar" });
-  // collapse the toolbar to a single button so it stops covering the map; stays as the first child
-  const barToggle = toolbar.createEl("button", {
+  // header row: title left, collapse control right. The whole rail collapses to just
+  // this header (see .mm-bar-collapsed), so the toggle lives inside it.
+  const head = toolbar.createDiv({ cls: "mm-head" });
+  if (cfg.title) head.createSpan({ cls: "mm-title", text: cfg.title });
+  const barToggle = head.createEl("button", {
     cls: "mm-icon mm-bartoggle",
-    text: "⟨",
-    attr: { title: "Collapse toolbar" },
+    text: "«",
+    attr: { title: "Collapse sidebar" },
   });
   barToggle.onclick = () => {
     const collapsedBar = toolbar.classList.toggle("mm-bar-collapsed");
-    barToggle.setText(collapsedBar ? "☰" : "⟨");
+    barToggle.setText(collapsedBar ? "☰" : "«");
     barToggle.setAttr(
       "title",
-      collapsedBar ? "Expand toolbar" : "Collapse toolbar"
+      collapsedBar ? "Expand sidebar" : "Collapse sidebar"
     );
     fit();
   };
-  if (cfg.title) toolbar.createSpan({ cls: "mm-title", text: cfg.title });
 
   // search box (Miro-style: highlights matching cards, dims the rest)
   const search = toolbar.createEl("input", {
@@ -177,6 +155,17 @@ function renderMindmap(
     searchTerm = search.value.trim().toLowerCase();
     reapply();
   };
+
+  // focus banner: a dismissible chip at the top of the rail showing the active focus.
+  // Focus persists (panning/clicking no longer drops it); only the ✕ clears it.
+  const focusTicket = toolbar.createEl("button", {
+    cls: "mm-focus-ticket",
+    attr: { title: "Clear focus" },
+  });
+  const focusLabel = focusTicket.createSpan({ cls: "mm-focus-label" });
+  focusTicket.createSpan({ cls: "mm-focus-x", text: "✕" });
+  focusTicket.onclick = () => setFocus(null);
+
   let viewSelect: HTMLSelectElement | null = null;
   let editViewBtn: HTMLButtonElement | null = null;
   let deleteViewBtn: HTMLButtonElement | null = null;
@@ -212,14 +201,19 @@ function renderMindmap(
 
   if ((cfg.filter || []).length) {
     const views = toolbar.createDiv({ cls: "mm-viewgroup" });
+    views.createSpan({ cls: "mm-fltlabel", text: "Saved views" });
     viewSelect = views.createEl("select", { cls: "mm-viewselect" });
     viewSelect.onchange = () => {
       selectedView = viewSelect?.value || "";
       const saved = savedViews.find((v) => v.name === selectedView);
       if (saved) applyFilterSnapshot(saved.filters || {});
       else syncViewControls();
+      persistActiveView(selectedView).catch(reportViewError);
     };
-    const saveView = views.createEl("button", { text: "Save current as…" });
+    const saveView = views.createEl("button", {
+      cls: "mm-viewsave",
+      text: "Save current as…",
+    });
     saveView.onclick = async () => {
       // Electron has no window.prompt, so a Modal is the only way to read a name.
       const name = await promptText(
@@ -296,8 +290,9 @@ function renderMindmap(
     syncViewControls();
   }
 
-  toolbar.createSpan({ cls: "mm-spacer" });
-  const titlesBtn = toolbar.createEl("button", {
+  // footer: view-density + window utilities pinned to the bottom of the rail
+  const foot = toolbar.createDiv({ cls: "mm-foot" });
+  const titlesBtn = foot.createEl("button", {
     text: "Titles only",
     attr: { title: "Show only node titles" },
   });
@@ -306,7 +301,7 @@ function renderMindmap(
     titlesBtn.toggleClass("on", titleOnly);
     draw();
   };
-  const fsBtn = toolbar.createEl("button", {
+  const fsBtn = foot.createEl("button", {
     text: "Fullscreen",
     attr: { title: "Fullscreen" },
   });
@@ -314,9 +309,15 @@ function renderMindmap(
     if (document.fullscreenElement) document.exitFullscreen();
     else wrapEl.requestFullscreen();
   };
-  plugin.registerDomEvent(document, "fullscreenchange", () =>
-    requestAnimationFrame(fit)
-  );
+  plugin.registerDomEvent(document, "fullscreenchange", () => {
+    requestAnimationFrame(fit);
+    // left fullscreen with a deferred persist queued -> flush it now
+    if (document.fullscreenElement !== wrapEl && pendingWrite) {
+      const cfgToWrite = pendingWrite;
+      pendingWrite = null;
+      writeBlock(cfgToWrite).catch(reportViewError);
+    }
+  });
 
   function currentFilterSnapshot(): Record<string, string[]> {
     const snapshot: Record<string, string[]> = {};
@@ -336,14 +337,14 @@ function renderMindmap(
     });
   }
 
-  // default a new view's name to its enabled filters, e.g. "Quarter: Q1, Q2 · Stage: Now"
+  // default a new view's name to its enabled filter values, capped so the select
+  // never shows a severed word, e.g. "now · in-progress · 2026 Q1".
   function defaultViewName(): string {
-    return Object.entries(currentFilterSnapshot())
-      .map(
-        ([prop, vals]) =>
-          `${cfg.filterLabels?.[prop] ?? prop}: ${vals.join(", ")}`
-      )
+    const snap = currentFilterSnapshot();
+    const name = (cfg.filter || [])
+      .flatMap((prop) => snap[prop] || [])
       .join(" · ");
+    return name.length > 32 ? name.slice(0, 31).trimEnd() + "…" : name;
   }
 
   function updateFilterChips() {
@@ -369,7 +370,7 @@ function renderMindmap(
   function syncViewControls() {
     if (!viewSelect) return;
     viewSelect.empty();
-    const placeholder = viewSelect.createEl("option", { text: "Views" });
+    const placeholder = viewSelect.createEl("option", { text: "Select…" });
     placeholder.value = "";
     savedViews.forEach((viewCfg) => {
       const opt = viewSelect!.createEl("option", { text: viewCfg.name });
@@ -392,7 +393,13 @@ function renderMindmap(
     return end < lines.length ? { start, end } : null;
   }
 
-  async function persistViews(nextViews: SavedViewCfg[]) {
+  async function writeBlock(nextCfg: MapCfg) {
+    // Defer while fullscreen: the write would re-render the block and drop us out of
+    // fullscreen. The UI already reflects the change in-place; only persistence waits.
+    if (document.fullscreenElement === wrapEl) {
+      pendingWrite = nextCfg;
+      return;
+    }
     const file = app.vault.getAbstractFileByPath(ctx.sourcePath);
     if (!(file instanceof TFile))
       throw new Error("Could not find the note that owns this mindmap block.");
@@ -402,17 +409,35 @@ function renderMindmap(
     const range = mindmapBlockRange(lines);
     if (!range)
       throw new Error("Could not locate the source ```mindmap code block.");
+    const nextBlock = ["```mindmap", stringifyYaml(nextCfg).trimEnd(), "```"];
+    lines.splice(range.start, range.end - range.start + 1, ...nextBlock);
+    await app.vault.modify(file, lines.join(eol));
+  }
 
+  async function persistViews(nextViews: SavedViewCfg[]) {
     const nextCfg: MapCfg = { ...cfg };
     if (nextViews.length) nextCfg.views = nextViews;
     else delete nextCfg.views;
-    const nextBlock = ["```mindmap", stringifyYaml(nextCfg).trimEnd(), "```"];
-    lines.splice(range.start, range.end - range.start + 1, ...nextBlock);
-    if (document.fullscreenElement === wrapEl)
-      reenterFullscreen.add(ctx.sourcePath);
-    await app.vault.modify(file, lines.join(eol));
+    // a deleted/renamed active view must not linger as a dangling pointer
+    if (
+      nextCfg.activeView &&
+      !nextViews.some((v) => v.name === nextCfg.activeView)
+    )
+      delete nextCfg.activeView;
+    await writeBlock(nextCfg);
     savedViews = nextViews;
     cfg.views = nextViews.length ? nextViews : undefined;
+    cfg.activeView = nextCfg.activeView;
+  }
+
+  // the picked view is restored after an Obsidian reload (see initialView). Raw
+  // chip toggles aren't persisted — too chatty to rewrite the note per click.
+  async function persistActiveView(name: string) {
+    const nextCfg: MapCfg = { ...cfg };
+    if (name) nextCfg.activeView = name;
+    else delete nextCfg.activeView;
+    await writeBlock(nextCfg);
+    cfg.activeView = name || undefined;
   }
 
   function reportViewError(e: unknown) {
@@ -422,7 +447,7 @@ function renderMindmap(
     );
   }
 
-  const resetBtn = toolbar.createEl("button", { text: "Reset" });
+  const resetBtn = foot.createEl("button", { text: "Reset" });
   resetBtn.onclick = () => {
     collapsed.clear();
     selected = null;
@@ -438,25 +463,20 @@ function renderMindmap(
     renderFocusTicket();
     draw();
     fit();
+    if (cfg.activeView) persistActiveView("").catch(reportViewError);
   };
 
-  const helpBtn = toolbar.createEl("button", {
+  const helpBtn = foot.createEl("button", {
     cls: "mm-help",
     text: "Help",
     attr: { title: "Mindmap help" },
   });
   helpBtn.onclick = () => new HelpModal(app).open();
 
-  // focus ticket: a chip showing the active focus. Focus persists (panning/clicking
-  // no longer drops it); only this ✕ clears it, so dialogs stay openable while focused.
-  const focusTicket = toolbar.createEl("button", {
-    cls: "mm-focus-ticket",
-    attr: { title: "Clear focus" },
-  });
-  focusTicket.onclick = () => setFocus(null);
+  // focus ticket lives at the top of the rail (built right after the search box).
   function renderFocusTicket() {
     if (focused && nodes[focused]) {
-      focusTicket.setText(`Focus: ${nodes[focused].title}  ✕`);
+      focusLabel.setText(`Focus: ${nodes[focused].title}`);
       focusTicket.style.display = "";
     } else {
       focusTicket.style.display = "none";
@@ -918,356 +938,19 @@ function renderMindmap(
     reapply();
   });
 
+  // in-memory state wins (survives a persist re-render); after an Obsidian reload
+  // it's gone, so fall back to the view persisted in the block (cfg.activeView).
   const remembered = activeState.get(ctx.sourcePath);
+  const startView = initialView(cfg);
   if (remembered) {
     selectedView = remembered.view;
     applyFilterSnapshot(remembered.filters); // restores chips + view dropdown + draws
+  } else if (startView) {
+    selectedView = startView.name;
+    applyFilterSnapshot(startView.filters || {});
   } else {
     draw();
   }
   // first fit after the element has real dimensions
   requestAnimationFrame(fit);
-}
-
-// ---- text prompt ---------------------------------------------------------
-// Obsidian/Electron has no window.prompt (it returns null), which silently broke
-// saving and editing views. A tiny Modal stands in: resolves the typed string, or
-// null on cancel/Esc.
-class PromptModal extends Modal {
-  private resolved = false;
-  constructor(
-    app: App,
-    private heading: string,
-    private initial: string,
-    private done: (value: string | null) => void
-  ) {
-    super(app);
-  }
-  override onOpen() {
-    const { contentEl, modalEl } = this;
-    // same fullscreen re-home as NoteModal: the modal mounts on body, hidden by the
-    // fullscreen layer, so move it inside the fullscreen element.
-    if (document.fullscreenElement)
-      document.fullscreenElement.appendChild(this.containerEl);
-    modalEl.addClass("mm-prompt");
-    contentEl.createEl("h3", { text: this.heading });
-    const input = contentEl.createEl("input", {
-      type: "text",
-      cls: "mm-prompt-input",
-      value: this.initial,
-    });
-    const submit = () => {
-      this.resolved = true;
-      this.done(input.value);
-      this.close();
-    };
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submit();
-      }
-    });
-    const row = contentEl.createDiv({ cls: "mm-prompt-actions" });
-    row.createEl("button", { text: "Save", cls: "mod-cta" }).onclick = submit;
-    row.createEl("button", { text: "Cancel" }).onclick = () => this.close();
-    window.setTimeout(() => {
-      input.focus();
-      input.select();
-    }, 0);
-  }
-  override onClose() {
-    this.contentEl.empty();
-    if (!this.resolved) this.done(null);
-  }
-}
-
-const promptText = (
-  app: App,
-  heading: string,
-  initial = ""
-): Promise<string | null> =>
-  new Promise((resolve) =>
-    new PromptModal(app, heading, initial, resolve).open()
-  );
-
-// Electron's window.confirm works but Obsidian's review guidelines disallow it, so a
-// tiny Modal stands in: resolves true on confirm, false on cancel/Esc.
-class ConfirmModal extends Modal {
-  private resolved = false;
-  constructor(
-    app: App,
-    private message: string,
-    private done: (ok: boolean) => void
-  ) {
-    super(app);
-  }
-  override onOpen() {
-    const { contentEl, modalEl } = this;
-    if (document.fullscreenElement)
-      document.fullscreenElement.appendChild(this.containerEl);
-    modalEl.addClass("mm-prompt");
-    contentEl.createEl("h3", { text: this.message });
-    const row = contentEl.createDiv({ cls: "mm-prompt-actions" });
-    row.createEl("button", { text: "OK", cls: "mod-cta" }).onclick = () => {
-      this.resolved = true;
-      this.done(true);
-      this.close();
-    };
-    row.createEl("button", { text: "Cancel" }).onclick = () => this.close();
-  }
-  override onClose() {
-    this.contentEl.empty();
-    if (!this.resolved) this.done(false);
-  }
-}
-
-const confirmModal = (app: App, message: string): Promise<boolean> =>
-  new Promise((resolve) => new ConfirmModal(app, message, resolve).open());
-
-// ---- help dialog ---------------------------------------------------------
-// ponytail: hand-maintained cheat sheet. The plugin can't read the repo README at
-// runtime (only main.js/manifest/styles ship to the vault), so this mirrors the key
-// reference; full docs + examples live at the GitHub link below.
-const HELP = `## Markdown Mindmap
-
-A map is one \`\`\`mindmap\`\`\` block of YAML. Folders become columns (**levels**),
-frontmatter links become **edges**. The tree rebuilds from your notes every open.
-
-### Quick start
-~~~yaml
-title: Goals → Projects → Tasks
-levels:
-  - { id: goals,    label: GOALS,    from: planning/goals,    card: { title: title, sub: kpi } }
-  - { id: projects, label: PROJECTS, from: planning/projects, card: { title: title, meta: [status] } }
-  - { id: tasks,    label: TASKS,    from: planning/tasks,    card: { title: title, progress: progress } }
-edges:
-  - { from: goals,    to: projects, via: goal }     # each project note: goal: "[[Goal A]]"
-  - { from: projects, to: tasks,    via: project }  # each task note: project: "[[Project 1]]"
-filter: [status]
-~~~
-
-### Top-level keys
-- **title** — heading in the toolbar
-- **height** — component height px (default 900)
-- **levels** — columns, left to right (**required**)
-- **edges** — parent → child links between levels
-- **filter** — properties shown as chip filters
-- **filterLabels** — rename a filter group's heading
-- **layout** — override card/column sizing
-- **properties: true** — show all frontmatter in the note dialog
-- **views** — saved filter selections (managed by the toolbar)
-
-### Each level
-- **id** (required) — referenced by edges
-- **from** (required) — folder to read notes from (recursive)
-- **label** — column header
-- **color** — column/border hex colour
-- **where** — keep only notes matching, e.g. \`{ horizon: now }\`
-- **card** — which fields render on the card
-
-### Each card
-Field values are frontmatter property names; dotted paths work everywhere (\`customFields.serves\`).
-- **title** — bold title (falls back to file name)
-- **sub** — subtitle line (single line by default; set \`layout.subLines: 2\`+ to wrap it)
-- **meta** — list of fields, muted \`·\`-joined line
-- **progress** — a 0–100 field as a progress bar
-- **bars** — a list field as a stacked count-by-category bar (or a map: \`{ field, category, colors }\`)
-- **labels** — list of fields shown as coloured pills
-
-### Each edge
-- **from** / **to** — level ids
-- **via** — frontmatter field holding the link (on the **to** notes by default; dotted paths work)
-- **reverse: true** — field lives on the **from** notes and points down
-- **secondary: true** — draw dashed, keep out of the layout spine
-
-### Interactions
-- **Search** — spotlight matching cards, dim the rest
-- **Filter chips** — multi-select per property (OR within, AND across)
-- **Saved views** — save / apply / edit / delete a filter combination
-- **Hover** a card — highlight its full up/down lineage
-- **Click** a card — dialog with its linked parents, siblings, and children (click to jump), properties, and the rendered note
-- **Focus** (from the dialog) — show a node, its ancestors, and primary descendants; persists until you click empty map space to clear
-- **Titles only** — hide subtitle/meta/bars/labels, leaving just titles
-- **+ / −** — collapse / expand a subtree
-- **⟨ / ☰** — collapse the toolbar to a single button, or expand it back
-- **⛶** fullscreen · **Reset** clears filters/search/collapse/focus · drag to pan, scroll to zoom
-
-[Full documentation on GitHub →](https://github.com/kikocastro/markdown-mindmap#readme)
-`;
-
-class HelpModal extends Modal {
-  private comp = new Component();
-  override async onOpen() {
-    this.comp.load();
-    const { contentEl, modalEl } = this;
-    if (document.fullscreenElement)
-      document.fullscreenElement.appendChild(this.containerEl);
-    modalEl.addClass("mm-modal");
-    contentEl.empty();
-    const body = contentEl.createDiv({ cls: "mm-note markdown-rendered" });
-    await MarkdownRenderer.render(this.app, HELP, body, "", this.comp);
-  }
-  override onClose() {
-    this.comp.unload();
-    this.contentEl.empty();
-  }
-}
-
-// ---- note dialog ---------------------------------------------------------
-
-class NoteModal extends Modal {
-  private comp = new Component();
-  constructor(
-    app: App,
-    private node: MNode,
-    private links: LinkRow[],
-    private file: TFile,
-    private nav: (id: string) => void,
-    private focus: (id: string) => void,
-    private showProperties: boolean
-  ) {
-    super(app);
-  }
-
-  override async onOpen() {
-    this.comp.load();
-    const { contentEl, modalEl } = this;
-    // ponytail: in fullscreen the modal mounts on document.body, which the fullscreen layer hides;
-    // re-home its container inside the fullscreen element so the dialog is actually visible.
-    if (document.fullscreenElement)
-      document.fullscreenElement.appendChild(this.containerEl);
-    modalEl.addClass("mm-modal");
-    contentEl.empty();
-    const n = this.node;
-
-    // header: title, level badge, sub/meta, progress/demand breakdown
-    const head = contentEl.createDiv({ cls: "mm-note-head" });
-    head.style.setProperty("--mm-accent", n.color);
-    const badges = head.createDiv({ cls: "mm-note-badges" });
-    badges.createSpan({ cls: "mm-badge", text: n.levelLabel });
-    if (n.progress != null)
-      badges.createSpan({
-        cls: "mm-badge",
-        text: `progress ${Math.round(n.progress)}%`,
-      });
-    head.createEl("h2", { cls: "mm-note-title", text: n.title });
-    // the underlying note's file name, when the card title is an alias for it
-    if (n.basename && n.basename !== n.title)
-      head.createDiv({ cls: "mm-note-file", text: n.basename });
-    if (n.sub) head.createDiv({ cls: "mm-note-sub", text: n.sub });
-    if (n.meta) head.createDiv({ cls: "mm-note-meta", text: n.meta });
-    if (n.bars.length) {
-      const br = head.createDiv({ cls: "mm-note-bars" });
-      n.bars.forEach(([cat, c, color]) => {
-        const pill = br.createSpan({
-          cls: "mm-note-pill",
-          text: `${c} ${cat}`,
-        });
-        pill.style.setProperty("--mm-cat", color);
-      });
-    }
-
-    const actions = head.createDiv({ cls: "mm-note-actions" });
-    const open = actions.createEl("button", {
-      cls: "mm-note-open",
-      text: "Open note ↗",
-    });
-    open.onclick = () => {
-      this.app.workspace.getLeaf("tab").openFile(this.file);
-      this.close();
-    };
-    const focus = actions.createEl("button", {
-      cls: "mm-note-focus",
-      text: "Focus",
-    });
-    focus.onclick = () => {
-      this.focus(n.id);
-      this.close();
-    };
-
-    // linked nodes: parents and children, click to jump the dialog to that note
-    this.renderLinks(contentEl);
-    if (this.showProperties) this.renderProperties(contentEl);
-
-    const body = contentEl.createDiv({ cls: "mm-note markdown-rendered" });
-    const content = await this.app.vault.cachedRead(this.file);
-    await MarkdownRenderer.render(
-      this.app,
-      content,
-      body,
-      this.file.path,
-      this.comp
-    );
-  }
-
-  private renderProperties(contentEl: HTMLElement) {
-    const entries = Object.entries(this.node.fm || {});
-    if (!entries.length) return;
-    const wrapEl = contentEl.createDiv({ cls: "mm-note-props" });
-    wrapEl.createDiv({ cls: "mm-note-props-title", text: "Properties" });
-    const table = wrapEl.createEl("table");
-    const tbody = table.createEl("tbody");
-    entries.forEach(([key, value]) => {
-      const row = tbody.createEl("tr");
-      row.createEl("th", { text: key });
-      row.createEl("td", { text: this.formatPropertyValue(value) });
-    });
-  }
-
-  private formatPropertyValue(value: unknown): string {
-    if (Array.isArray(value))
-      return value.map((v) => this.formatPropertyValue(v)).join(", ");
-    if (value && typeof value === "object") {
-      try {
-        return JSON.stringify(value);
-      } catch {
-        return String(value);
-      }
-    }
-    if (value == null || value === "") return "—";
-    return String(value);
-  }
-
-  private renderLinks(contentEl: HTMLElement) {
-    if (!this.links.length) return;
-    const wrapEl = contentEl.createDiv({ cls: "mm-note-links" });
-    (
-      [
-        ["Parents", "parent"],
-        ["Siblings", "sibling"],
-        ["Children", "child"],
-      ] as const
-    ).forEach(([label, rel]) => {
-      const rows = this.links.filter((l) => l.relation === rel);
-      if (!rows.length) return;
-      // when every row in the group shares one level, hoist it into the header
-      // (PARENTS · DRIVERS) so the per-row title gets the full width
-      const lvls = new Set(rows.map((l) => l.levelLabel));
-      const sharedLvl = lvls.size === 1 ? [...lvls][0] : null;
-      const grp = wrapEl.createDiv({ cls: "mm-note-linkgroup" });
-      grp.createDiv({
-        cls: "mm-note-linklabel",
-        text: `${label}${sharedLvl ? ` · ${sharedLvl}` : ""} (${rows.length})`,
-      });
-      rows.forEach((l) => {
-        const btn = grp.createEl("button", {
-          cls: "mm-link-row" + (l.secondary ? " mm-link-sec" : ""),
-        });
-        btn.style.setProperty("--mm-accent", l.color);
-        if (!sharedLvl)
-          btn.createSpan({ cls: "mm-link-lvl", text: l.levelLabel });
-        btn.createSpan({ cls: "mm-link-title", text: l.title });
-        if (l.secondary) btn.createSpan({ cls: "mm-link-tag", text: "also" });
-        btn.onclick = () => {
-          this.close();
-          this.nav(l.id);
-        };
-      });
-    });
-  }
-
-  override onClose() {
-    this.comp.unload();
-    this.contentEl.empty();
-  }
 }

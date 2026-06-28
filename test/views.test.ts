@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { upsertView, viewNameTaken } from "../src/graph";
-import type { SavedViewCfg } from "../src/graph";
+import { upsertView, viewNameTaken, initialView } from "../src/graph";
+import type { SavedViewCfg, MapCfg } from "../src/graph";
 
 // the saved-views toolbar (Save current as… / Edit / Delete) leans on these pure
 // list ops; the adapter only adds the prompt + YAML persistence. Pin the behaviour
@@ -49,5 +49,27 @@ describe("viewNameTaken", () => {
 
   it("is false for a fresh name", () => {
     expect(viewNameTaken([v("Active")], "Backlog")).toBe(false);
+  });
+});
+
+// On (re)render the adapter restores the view named by cfg.activeView so a saved
+// view stays selected across an Obsidian reload (in-memory state is gone by then).
+const cfg = (over: Partial<MapCfg> = {}): MapCfg => ({
+  levels: [],
+  ...over,
+});
+
+describe("initialView", () => {
+  it("returns the view matching cfg.activeView", () => {
+    const views = [v("Active", { status: ["todo"] }), v("Done")];
+    expect(initialView(cfg({ activeView: "Active", views }))).toEqual(
+      v("Active", { status: ["todo"] })
+    );
+  });
+
+  it("returns null when activeView is unset or names a deleted view", () => {
+    const views = [v("Active")];
+    expect(initialView(cfg({ views }))).toBeNull();
+    expect(initialView(cfg({ activeView: "Gone", views }))).toBeNull();
   });
 });
