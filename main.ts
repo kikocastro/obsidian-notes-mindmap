@@ -390,8 +390,13 @@ function renderMindmap(
           const cx = n.x! + n.w! - 16,
             cy = n.y! + 15,
             isC = collapsed.has(n.id);
-          const tg = svgEl("g", { class: "mm-toggle" }, g);
-          svgEl("circle", { cx, cy, r: 8 }, tg);
+          // collapsed toggles get a distinct class + bigger circle so contracted subtrees stand out
+          const tg = svgEl(
+            "g",
+            { class: "mm-toggle" + (isC ? " mm-collapsed" : "") },
+            g
+          );
+          svgEl("circle", { cx, cy, r: isC ? 9 : 8 }, tg);
           svgEl("text", { x: cx, y: cy + 4 }, tg).textContent = isC ? "+" : "−";
           tg.addEventListener("click", (ev) => {
             ev.stopPropagation();

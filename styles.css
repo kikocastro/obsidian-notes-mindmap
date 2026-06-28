@@ -196,11 +196,23 @@
   fill: var(--background-secondary);
   stroke: var(--text-faint);
 }
+.mm-toggle:hover circle {
+  fill: var(--background-modifier-hover);
+  stroke: var(--text-normal);
+}
 .mm-toggle text {
   fill: var(--text-normal);
   font-size: 13px;
   font-weight: 700;
   text-anchor: middle;
+}
+/* a contracted subtree: accent-filled + so it's obvious at a glance */
+.mm-toggle.mm-collapsed circle {
+  fill: var(--interactive-accent);
+  stroke: var(--interactive-accent);
+}
+.mm-toggle.mm-collapsed text {
+  fill: var(--text-on-accent);
 }
 
 /* note modal */
