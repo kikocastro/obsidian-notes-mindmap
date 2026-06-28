@@ -2,7 +2,7 @@
 
 .mm-wrap {
   position: relative;
-  height: 760px;
+  height: 900px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 10px;
   overflow: hidden;
@@ -101,9 +101,28 @@
 .mm-note-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .mm-badge { font-size: 10px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; padding: 2px 8px; border-radius: 20px; background: var(--mm-accent, var(--interactive-accent)); color: var(--text-on-accent); }
 .mm-note-title { margin: 2px 0 6px; font-size: 18px; }
+.mm-note-file { color: var(--text-faint); font-size: 12px; font-family: var(--font-monospace); margin: -2px 0 6px; }
 .mm-note-sub { color: var(--text-muted); font-size: 13px; }
 .mm-note-meta { color: var(--text-faint); font-size: 12px; margin-top: 3px; }
 .mm-note-bars { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .mm-note-pill { font-size: 11px; padding: 2px 9px; border-radius: 20px; border: 1px solid var(--mm-cat, var(--text-faint)); color: var(--mm-cat, var(--text-muted)); }
 .mm-note-open { margin-top: 10px; }
+
+/* linked nodes: parents + children, click to jump the dialog */
+.mm-note-links { display: flex; flex-wrap: wrap; gap: 16px; margin: 4px 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--background-modifier-border); }
+.mm-note-linkgroup { display: flex; flex-direction: column; gap: 4px; min-width: 200px; flex: 1 1 200px; }
+.mm-note-linklabel { color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; font-size: 9.5px; }
+.mm-link-row {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  text-align: left; padding: 4px 8px; border-radius: 6px; cursor: pointer;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-left: 3px solid var(--mm-accent, var(--interactive-accent));
+}
+.mm-link-row:hover { background: var(--background-modifier-hover); }
+.mm-link-row.mm-link-sec { border-left-style: dashed; }
+.mm-link-lvl { color: var(--text-faint); font-size: 9px; text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
+.mm-link-title { color: var(--text-normal); font-size: 12.5px; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mm-link-tag { color: var(--text-faint); font-size: 9px; font-style: italic; }
+
 .mm-note { padding-top: 4px; }

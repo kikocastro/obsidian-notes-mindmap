@@ -13,7 +13,7 @@ Point it at some folders, tell it which frontmatter field links each note to its
 - **Bar charts & progress bars.** Render a 0–100 field as a progress bar, or a list field as a stacked count-by-category bar.
 - **Multi-select filters.** Toggle-chip filters per property (OR within a property, AND across).
 - **Search highlight.** A search box that spotlights matching cards and dims the rest.
-- **Collapse / expand** any subtree; **pan / zoom / fit / fullscreen**; click a card to open the note in a dialog.
+- **Collapse / expand** any subtree; **pan / zoom / fit / fullscreen**; click a card for a dialog with its linked parents/children and the rendered note.
 - **Theme-aware.** Uses Obsidian CSS variables, so it follows your light/dark theme.
 
 ## How it works
@@ -68,6 +68,8 @@ filter: [status]
 ```
 ````
 
+> A runnable copy of this map, with sample notes, lives in [`examples/mindmap-demo/`](examples/mindmap-demo). Copy that folder into your vault root and open `Mindmap demo.md`.
+
 ## Configuration reference
 
 **Top level**
@@ -75,7 +77,7 @@ filter: [status]
 | Key | Type | Meaning |
 |-----|------|---------|
 | `title` | string | Heading in the toolbar. |
-| `height` | number | Component height in px (default `760`). |
+| `height` | number | Component height in px (default `900`). |
 | `levels` | list | Columns, left to right. **Required.** |
 | `edges` | list | Parent → child links between levels. |
 | `filter` | list of strings | Frontmatter properties exposed as multi-select chip filters. |
@@ -140,7 +142,7 @@ filter: [horizon, kind, status]
 - **Search** box — spotlight cards matching title / sub / meta, dim the rest.
 - **Filter chips** — multi-select per property (OR within, AND across).
 - **Hover** a card — highlight its full up/down lineage.
-- **Click** a card — open a dialog (level badge + progress/demand breakdown + the rendered note, with "Open note").
+- **Click** a card — open a dialog: title + file name, level badge, progress/demand breakdown, its **linked parents and children** (click one to jump the dialog there), the rendered note, and "Open note".
 - **+ / −** on a card — collapse / expand its subtree.
 - **⛶** — fullscreen. **Reset** — clear filters/search/collapse and refit.
 - **Drag** to pan, **scroll** to zoom.
