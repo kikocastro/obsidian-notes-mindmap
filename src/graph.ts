@@ -591,6 +591,26 @@ export function filterOptions(
   return options;
 }
 
+// ---- saved views ---------------------------------------------------------
+// Pure list ops behind the views toolbar. The adapter owns the name prompt and
+// writing `views:` back into the code block; here we just decide the next list.
+
+// "Save current as…": replace a same-named view in place, otherwise append.
+export const upsertView = (
+  views: SavedViewCfg[],
+  view: SavedViewCfg
+): SavedViewCfg[] => {
+  const i = views.findIndex((v) => v.name === view.name);
+  return i >= 0 ? views.map((v, j) => (j === i ? view : v)) : [...views, view];
+};
+
+// guard rename collisions: is `name` used by a view other than `exceptName`?
+export const viewNameTaken = (
+  views: SavedViewCfg[],
+  name: string,
+  exceptName?: string
+): boolean => views.some((v) => v.name === name && v.name !== exceptName);
+
 // ---- search --------------------------------------------------------------
 
 // case-insensitive match across title + sub + meta; empty term matches everything

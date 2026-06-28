@@ -274,6 +274,15 @@
   width: min(760px, 92vw);
   transform-origin: center;
 }
+.mm-prompt-input {
+  width: 100%;
+  margin: 4px 0 14px;
+}
+.mm-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .mm-note-head {
   border-left: 3px solid var(--mm-accent, var(--interactive-accent));
   padding: 2px 0 12px 14px;
@@ -477,7 +486,7 @@
   }
 
   .modal.mm-modal {
-    animation: mm-modal-in 300ms ease-out both;
+    animation: mm-modal-in 150ms ease-out both;
   }
 
   .modal-container:has(.modal.mm-modal) .modal-bg {

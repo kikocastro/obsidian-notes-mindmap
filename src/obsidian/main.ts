@@ -26,6 +26,8 @@ import {
   computeVisible,
   orderAndLayout,
   searchMatch,
+  upsertView,
+  viewNameTaken,
   wrap,
   validateConfig,
 } from "../graph";
@@ -203,42 +205,40 @@ function renderMindmap(
       else syncViewControls();
     };
     const saveView = views.createEl("button", { text: "Save current as…" });
-    saveView.onclick = () => {
-      const name = window.prompt("Save current filters as view:");
+    saveView.onclick = async () => {
+      // Electron has no window.prompt, so a Modal is the only way to read a name.
+      const name = await promptText(app, "Save current filters as a view");
       if (!name?.trim()) return;
       const cleanName = name.trim();
-      const existing = savedViews.findIndex((v) => v.name === cleanName);
       if (
-        existing >= 0 &&
+        viewNameTaken(savedViews, cleanName) &&
         !window.confirm(`Replace the saved view "${cleanName}"?`)
       )
         return;
-      const nextView = { name: cleanName, filters: currentFilterSnapshot() };
-      const nextViews =
-        existing >= 0
-          ? savedViews.map((v, i) => (i === existing ? nextView : v))
-          : [...savedViews, nextView];
-      persistViews(nextViews)
-        .then(() => {
-          selectedView = cleanName;
-          syncViewControls();
-        })
-        .catch(reportViewError);
+      const nextViews = upsertView(savedViews, {
+        name: cleanName,
+        filters: currentFilterSnapshot(),
+      });
+      try {
+        await persistViews(nextViews);
+        selectedView = cleanName;
+        syncViewControls();
+      } catch (e) {
+        reportViewError(e);
+      }
     };
     editViewBtn = views.createEl("button", { text: "Edit" });
-    editViewBtn.onclick = () => {
+    editViewBtn.onclick = async () => {
       const current = savedViews.find((v) => v.name === selectedView);
       if (!current) return;
-      const name = window.prompt(
-        "Rename this view and update it to current filters:",
+      const name = await promptText(
+        app,
+        "Rename this view and update it to current filters",
         current.name
       );
       if (!name?.trim()) return;
       const cleanName = name.trim();
-      const duplicate = savedViews.some(
-        (v) => v.name === cleanName && v.name !== current.name
-      );
-      if (duplicate) {
+      if (viewNameTaken(savedViews, cleanName, current.name)) {
         window.alert(`A saved view named "${cleanName}" already exists.`);
         return;
       }
@@ -247,12 +247,13 @@ function renderMindmap(
           ? { name: cleanName, filters: currentFilterSnapshot() }
           : v
       );
-      persistViews(nextViews)
-        .then(() => {
-          selectedView = cleanName;
-          syncViewControls();
-        })
-        .catch(reportViewError);
+      try {
+        await persistViews(nextViews);
+        selectedView = cleanName;
+        syncViewControls();
+      } catch (e) {
+        reportViewError(e);
+      }
     };
     deleteViewBtn = views.createEl("button", { text: "Delete" });
     deleteViewBtn.onclick = () => {
@@ -842,6 +843,67 @@ function renderMindmap(
   // first fit after the element has real dimensions
   requestAnimationFrame(fit);
 }
+
+// ---- text prompt ---------------------------------------------------------
+// Obsidian/Electron has no window.prompt (it returns null), which silently broke
+// saving and editing views. A tiny Modal stands in: resolves the typed string, or
+// null on cancel/Esc.
+class PromptModal extends Modal {
+  private resolved = false;
+  constructor(
+    app: App,
+    private heading: string,
+    private initial: string,
+    private done: (value: string | null) => void
+  ) {
+    super(app);
+  }
+  override onOpen() {
+    const { contentEl, modalEl } = this;
+    // same fullscreen re-home as NoteModal: the modal mounts on body, hidden by the
+    // fullscreen layer, so move it inside the fullscreen element.
+    if (document.fullscreenElement)
+      document.fullscreenElement.appendChild(this.containerEl);
+    modalEl.addClass("mm-prompt");
+    contentEl.createEl("h3", { text: this.heading });
+    const input = contentEl.createEl("input", {
+      type: "text",
+      cls: "mm-prompt-input",
+      value: this.initial,
+    });
+    const submit = () => {
+      this.resolved = true;
+      this.done(input.value);
+      this.close();
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      }
+    });
+    const row = contentEl.createDiv({ cls: "mm-prompt-actions" });
+    row.createEl("button", { text: "Save", cls: "mod-cta" }).onclick = submit;
+    row.createEl("button", { text: "Cancel" }).onclick = () => this.close();
+    window.setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 0);
+  }
+  override onClose() {
+    this.contentEl.empty();
+    if (!this.resolved) this.done(null);
+  }
+}
+
+const promptText = (
+  app: App,
+  heading: string,
+  initial = ""
+): Promise<string | null> =>
+  new Promise((resolve) =>
+    new PromptModal(app, heading, initial, resolve).open()
+  );
 
 // ---- note dialog ---------------------------------------------------------
 
