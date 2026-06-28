@@ -175,7 +175,7 @@ filter: [horizon, kind, status]
 - **Filter chips** — multi-select per property (OR within, AND across), with options ordered by their first visible map position.
 - **Saved views** — save the current filter combination, apply it from the dropdown, edit it, or delete it. Saved views are written to the block's `views:` key.
 - **Hover** a card — highlight its full up/down lineage.
-- **Click** a card — open a dialog: title + file name, level badge, progress/demand breakdown, its **linked parents and children** (click one to jump the dialog there), optional frontmatter properties, the rendered note, "Open note", and "Focus".
+- **Click** a card — open a dialog: title + file name, level badge, progress/demand breakdown, its **linked parents, siblings, and children** (click one to jump the dialog there), optional frontmatter properties, the rendered note, "Open note", and "Focus".
 - **Focus** from a card dialog — show that node, its ancestors, and its primary descendants; click empty map space to clear focus.
 - **+ / −** on a card — collapse / expand its subtree.
 - **⛶** — fullscreen. **Reset** — clear filters/search/collapse/focus and refit.

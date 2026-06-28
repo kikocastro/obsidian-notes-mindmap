@@ -19,6 +19,7 @@ import {
   collectNodes,
   buildEdges,
   isSecondary,
+  siblings,
   filterOptions,
   focusVisible,
   resolveLayout,
@@ -37,14 +38,14 @@ import {
 
 const NS = "http://www.w3.org/2000/svg";
 
-// a parent/child neighbour, resolved for the note dialog's "Linked" section
+// a neighbour (parent/child/sibling), resolved for the note dialog's "Linked" section
 interface LinkRow {
   id: string;
   title: string;
   levelLabel: string;
   color: string;
   secondary: boolean;
-  relation: "parent" | "child";
+  relation: "parent" | "child" | "sibling";
 }
 
 export default class NotesMindmapPlugin extends Plugin {
@@ -444,8 +445,20 @@ function renderMindmap(
         relation,
       };
     };
+    const sibRow = (id: string): LinkRow => {
+      const o = nodes[id];
+      return {
+        id,
+        title: o.title,
+        levelLabel: o.levelLabel,
+        color: o.color,
+        secondary: false,
+        relation: "sibling",
+      };
+    };
     return [
       ...[...n.parents].map((p) => row(p, "parent")),
+      ...siblings(nodes, n.id).map(sibRow),
       ...[...n.children].map((c) => row(c, "child")),
     ];
   }
@@ -924,6 +937,7 @@ class NoteModal extends Modal {
     (
       [
         ["Parents", "parent"],
+        ["Siblings", "sibling"],
         ["Children", "child"],
       ] as const
     ).forEach(([label, rel]) => {

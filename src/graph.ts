@@ -480,6 +480,25 @@ export function focusVisible(
   return vis;
 }
 
+// nodes that share at least one parent with `id` (primary or secondary), excluding itself,
+// ordered by level then layout/collection order so the dialog lists them predictably.
+export function siblings(nodes: Record<string, MNode>, id: string): string[] {
+  const self = nodes[id];
+  if (!self) return [];
+  const out = new Set<string>();
+  self.parents.forEach((p) =>
+    nodes[p]?.children.forEach((c) => {
+      if (c !== id && nodes[c]) out.add(c);
+    })
+  );
+  return [...out].sort(
+    (a, b) =>
+      nodes[a].levelIdx - nodes[b].levelIdx ||
+      nodes[a].collIdx - nodes[b].collIdx ||
+      a.localeCompare(b)
+  );
+}
+
 // ---- ordering + layout ---------------------------------------------------
 
 // DFS by primary parent so siblings stay contiguous, then place right->left so a
