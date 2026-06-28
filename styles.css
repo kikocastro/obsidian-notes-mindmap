@@ -447,16 +447,16 @@
   .mm-toolbar button,
   .mm-link-row {
     transition:
-      background-color 150ms ease,
-      border-color 150ms ease,
-      color 150ms ease;
+      background-color 300ms ease,
+      border-color 300ms ease,
+      color 300ms ease;
   }
 
   .mm-link,
   .mm-node {
     transition:
-      opacity 150ms ease,
-      transform 150ms ease;
+      opacity 300ms ease,
+      transform 300ms ease;
   }
 
   .mm-node {
@@ -468,30 +468,30 @@
   .mm-toggle circle,
   .mm-toggle text {
     transition:
-      fill 150ms ease,
-      stroke 150ms ease,
-      stroke-width 150ms ease,
-      filter 150ms ease,
-      height 150ms ease,
-      y 150ms ease;
+      fill 300ms ease,
+      stroke 300ms ease,
+      stroke-width 300ms ease,
+      filter 300ms ease,
+      height 300ms ease,
+      y 300ms ease;
   }
 
   .modal.mm-modal {
-    animation: mm-modal-in 150ms ease-out both;
+    animation: mm-modal-in 300ms ease-out both;
   }
 
   .modal-container:has(.modal.mm-modal) .modal-bg {
-    animation: mm-modal-bg-in 150ms ease-out both;
+    animation: mm-modal-bg-in 300ms ease-out both;
   }
 
   .modal-container.mod-closing .modal.mm-modal,
   .modal-container.is-closing .modal.mm-modal {
-    animation: mm-modal-out 150ms ease-in both;
+    animation: mm-modal-out 300ms ease-in both;
   }
 
   .modal-container.mod-closing:has(.modal.mm-modal) .modal-bg,
   .modal-container.is-closing:has(.modal.mm-modal) .modal-bg {
-    animation: mm-modal-bg-out 150ms ease-in both;
+    animation: mm-modal-bg-out 300ms ease-in both;
   }
 
   @starting-style {
