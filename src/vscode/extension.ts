@@ -15,7 +15,7 @@ import {
 import { MapPayload, VEdge, VNode } from "./payload";
 
 // ============================================================================
-// Notes Mindmap — VS Code adapter. Reuses the pure core (../graph). Reads the
+// Markdown Mindmap — VS Code adapter. Reuses the pure core (../graph). Reads the
 // workspace's markdown frontmatter, runs the same layout the Obsidian adapter
 // does, and renders the result in a webview. Click a card to open the note.
 // Config comes from a ```mindmap fenced block in the active markdown file.
@@ -23,7 +23,9 @@ import { MapPayload, VEdge, VNode } from "./payload";
 
 export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
-    vscode.commands.registerCommand("notesMindmap.open", () => openMap(context))
+    vscode.commands.registerCommand("markdownMindmap.open", () =>
+      openMap(context)
+    )
   );
 }
 
@@ -33,14 +35,14 @@ async function openMap(context: vscode.ExtensionContext) {
   const ed = vscode.window.activeTextEditor;
   if (!ed || ed.document.languageId !== "markdown") {
     vscode.window.showErrorMessage(
-      "Notes Mindmap: open a markdown note with a ```mindmap block first."
+      "Markdown Mindmap: open a markdown note with a ```mindmap block first."
     );
     return;
   }
   const block = extractMindmapBlock(ed.document.getText());
   if (!block) {
     vscode.window.showErrorMessage(
-      "Notes Mindmap: no ```mindmap block found in this note."
+      "Markdown Mindmap: no ```mindmap block found in this note."
     );
     return;
   }
@@ -50,7 +52,7 @@ async function openMap(context: vscode.ExtensionContext) {
     validateConfig(cfg);
   } catch (e: any) {
     vscode.window.showErrorMessage(
-      "Notes Mindmap config error: " + (e?.message || String(e))
+      "Markdown Mindmap config error: " + (e?.message || String(e))
     );
     return;
   }
@@ -135,7 +137,7 @@ async function openMap(context: vscode.ExtensionContext) {
     .filter((h) => h.label);
 
   const payload: MapPayload = {
-    title: cfg.title || "Notes Mindmap",
+    title: cfg.title || "Markdown Mindmap",
     titleLines: resolveLayout(cfg.layout).titleLines,
     nodes: vNodes,
     edges,
@@ -145,7 +147,7 @@ async function openMap(context: vscode.ExtensionContext) {
   };
 
   const panel = vscode.window.createWebviewPanel(
-    "notesMindmap",
+    "markdownMindmap",
     payload.title,
     vscode.ViewColumn.Active,
     { enableScripts: true, retainContextWhenHidden: true }

@@ -1,4 +1,4 @@
-# Notes Mindmap
+# Markdown Mindmap
 
 An [Obsidian](https://obsidian.md) plugin that renders configurable mind maps (leveled, left-to-right trees) **live from your notes' frontmatter links**. Each map is a single fenced ` ```mindmap ` code block, so you can drop as many maps as you like anywhere in your vault. There is no separate data file to keep in sync: the tree is rebuilt from your notes every time you open it.
 
@@ -13,9 +13,9 @@ It ships as **two adapters over one shared core** (`src/graph.ts`): the **Obsidi
 - **Edges from links.** A `[[wikilink]]`, plain title, basename, list, or nested field (`customFields.serves`) on either end of an edge.
 - **Secondary (dashed) links.** Mark cross-links that should draw dashed and stay out of the layout spine (e.g. "also relates to").
 - **Bar charts & progress bars.** Render a 0–100 field as a progress bar, or a list field as a stacked count-by-category bar.
-- **Multi-select filters.** Toggle-chip filters per property (OR within a property, AND across).
+- **Multi-select filters and saved views.** Toggle-chip filters per property (OR within a property, AND across), then save named filter combinations back into the map block.
 - **Search highlight.** A search box that spotlights matching cards and dims the rest.
-- **Collapse / expand** any subtree; **pan / zoom / fit / fullscreen**; click a card for a dialog with its linked parents/children and the rendered note.
+- **Collapse / expand** any subtree, focus a node's lineage/subtree, **pan / zoom / fit / fullscreen**; click a card for a dialog with its linked parents/children, optional properties, and the rendered note.
 - **Theme-aware.** Uses Obsidian CSS variables, so it follows your light/dark theme.
 
 ## How it works
@@ -38,12 +38,12 @@ A map is a list of **levels**. Each level reads notes from a `from:` folder and 
 ### Manual
 
 1. Get the three build files (`main.js`, `manifest.json`, `styles.css`) — either from a [Release](../../releases) or by building from source (`npm install && npm run build`).
-2. Copy them into `<your-vault>/.obsidian/plugins/notes-mindmap/`.
-3. Reload Obsidian, then **Settings → Community plugins → enable "Notes Mindmap"**.
+2. Copy them into `<your-vault>/.obsidian/plugins/markdown-mindmap/`.
+3. Reload Obsidian, then **Settings → Community plugins → enable "Markdown Mindmap"**.
 
 ### BRAT
 
-Once a release is published, install with [BRAT](https://github.com/TfTHacker/obsidian42-brat): _Add beta plugin_ → `kikocastro/obsidian-notes-mindmap`. BRAT-managed plugins also survive Obsidian Sync, unlike a hand-copied folder.
+Once a release is published, install with [BRAT](https://github.com/TfTHacker/obsidian42-brat): _Add beta plugin_ → `kikocastro/markdown-mindmap`. BRAT-managed plugins also survive Obsidian Sync, unlike a hand-copied folder.
 
 ## Quick start
 
@@ -78,14 +78,16 @@ filter: [status]
 
 **Top level**
 
-| Key      | Type            | Meaning                                                      |
-| -------- | --------------- | ------------------------------------------------------------ |
-| `title`  | string          | Heading in the toolbar.                                      |
-| `height` | number          | Component height in px (default `900`).                      |
-| `levels` | list            | Columns, left to right. **Required.**                        |
-| `edges`  | list            | Parent → child links between levels.                         |
-| `filter` | list of strings | Frontmatter properties exposed as multi-select chip filters. |
-| `layout` | map             | Override card/column sizing (below). All keys optional.      |
+| Key          | Type            | Meaning                                                                                |
+| ------------ | --------------- | -------------------------------------------------------------------------------------- |
+| `title`      | string          | Heading in the toolbar.                                                                |
+| `height`     | number          | Component height in px (default `900`).                                                |
+| `levels`     | list            | Columns, left to right. **Required.**                                                  |
+| `edges`      | list            | Parent → child links between levels.                                                   |
+| `filter`     | list of strings | Frontmatter properties exposed as multi-select chip filters.                           |
+| `layout`     | map             | Override card/column sizing (below). All keys optional.                                |
+| `properties` | boolean         | When `true`, the note dialog shows all frontmatter as a table above the rendered note. |
+| `views`      | list            | Saved filter selections, managed by the toolbar's saved-view controls.                 |
 
 **`layout`** (all optional, defaults shown)
 
@@ -111,14 +113,14 @@ filter: [status]
 
 **Each card**
 
-| Key        | Type             | Renders                                                                                                                                                                  |
-| ---------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `title`    | field            | Bold title (falls back to the file name).                                                                                                                                |
-| `sub`      | field            | Subtitle line.                                                                                                                                                           |
-| `meta`     | list of fields   | A muted `·`-joined line.                                                                                                                                                 |
-| `progress` | field (0–100)    | A progress bar.                                                                                                                                                          |
-| `bars`     | field **or** map | A stacked count-by-category bar (below).                                                                                                                                 |
-| `labels`   | list of fields   | Small value pills along the card's top strip, one per field (e.g. `[kind, horizon, stage]`). Empty/missing fields drop out; pills that don't fit on one row are skipped. |
+| Key        | Type             | Renders                                                                                                                                                                             |
+| ---------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`    | field            | Bold title (falls back to the file name).                                                                                                                                           |
+| `sub`      | field            | Subtitle line.                                                                                                                                                                      |
+| `meta`     | list of fields   | A muted `·`-joined line.                                                                                                                                                            |
+| `progress` | field (0–100)    | A progress bar.                                                                                                                                                                     |
+| `bars`     | field **or** map | A stacked count-by-category bar (below).                                                                                                                                            |
+| `labels`   | list of fields   | Small colored value pills along the card's bottom strip, one per field (e.g. `[kind, horizon, stage]`). Empty/missing fields drop out; pills that don't fit on one row are skipped. |
 
 **`bars`** — either a field name (string) or a map:
 
@@ -152,6 +154,7 @@ A product strategy tree, showing secondary dashed links, demand bars, and progre
 ```mindmap
 title: North Star → Drivers → Opportunities → Roadmap
 height: 860
+properties: true
 levels:
   - { id: northstar, label: NORTH STAR,   from: strategy/north-star,   color: "#1abc9c", card: { title: title, sub: metric } }
   - { id: drivers,   label: DRIVERS,       from: strategy/drivers,      color: "#9b59b6", card: { title: title, sub: metric } }
@@ -168,11 +171,13 @@ filter: [horizon, kind, status]
 ## Interactions
 
 - **Search** box — spotlight cards matching title / sub / meta, dim the rest.
-- **Filter chips** — multi-select per property (OR within, AND across).
+- **Filter chips** — multi-select per property (OR within, AND across), with options ordered by their first visible map position.
+- **Saved views** — save the current filter combination, apply it from the dropdown, edit it, or delete it. Saved views are written to the block's `views:` key.
 - **Hover** a card — highlight its full up/down lineage.
-- **Click** a card — open a dialog: title + file name, level badge, progress/demand breakdown, its **linked parents and children** (click one to jump the dialog there), the rendered note, and "Open note".
+- **Click** a card — open a dialog: title + file name, level badge, progress/demand breakdown, its **linked parents and children** (click one to jump the dialog there), optional frontmatter properties, the rendered note, "Open note", and "Focus".
+- **Focus** from a card dialog — show that node, its ancestors, and its primary descendants; click empty map space to clear focus.
 - **+ / −** on a card — collapse / expand its subtree.
-- **⛶** — fullscreen. **Reset** — clear filters/search/collapse and refit.
+- **⛶** — fullscreen. **Reset** — clear filters/search/collapse/focus and refit.
 - **Drag** to pan, **scroll** to zoom.
 
 ## Development
@@ -186,7 +191,7 @@ npm run build   # type-check + production build
 Obsidian only loads `main.js`, `manifest.json`, and `styles.css`. For live iteration, symlink this folder into your vault:
 
 ```bash
-ln -s "$(pwd)" "<your-vault>/.obsidian/plugins/notes-mindmap"
+ln -s "$(pwd)" "<your-vault>/.obsidian/plugins/markdown-mindmap"
 ```
 
 (If you use Obsidian Sync, prefer a Release + BRAT, or commit the built files — Sync can remove a hand-linked plugin folder it doesn't recognize.)
@@ -200,7 +205,7 @@ The same core also drives a VS Code extension (`src/vscode/`). Unlike Obsidian, 
 1. Open this repo's folder in VS Code (the adapter lives in `src/vscode/`).
 2. Press `F5` (Run and Debug → **Run Extension**). It builds, then opens an **Extension Development Host** window already pointed at `examples/`.
 3. In that window, open a markdown note that contains a ` ```mindmap ` block (e.g. `mindmap-demo/Mindmap demo.md`).
-4. Command Palette (`Cmd/Ctrl+Shift+P`) → **Notes Mindmap: Open Map**. The graph opens in a panel beside the note: drag to pan, scroll to zoom, click a card to open that note.
+4. Command Palette (`Cmd/Ctrl+Shift+P`) → **Markdown Mindmap: Open Map**. The graph opens in a panel beside the note: drag to pan, scroll to zoom, click a card to open that note.
 
 **Notes:**
 

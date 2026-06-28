@@ -1,6 +1,6 @@
 {
-  "name": "notes-mindmap",
-  "displayName": "Notes Mindmap",
+  "name": "markdown-mindmap",
+  "displayName": "Markdown Mindmap",
   "version": "0.1.0",
   "description": "Configurable mind maps / leveled trees from note frontmatter links. Obsidian plugin + VS Code extension over one shared core.",
   "main": "dist/extension.js",
@@ -11,13 +11,13 @@
     "Visualization"
   ],
   "activationEvents": [
-    "onCommand:notesMindmap.open"
+    "onCommand:markdownMindmap.open"
   ],
   "contributes": {
     "commands": [
       {
-        "command": "notesMindmap.open",
-        "title": "Notes Mindmap: Open Map"
+        "command": "markdownMindmap.open",
+        "title": "Markdown Mindmap: Open Map"
       }
     ]
   },

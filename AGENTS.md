@@ -25,7 +25,7 @@ npm test           # vitest run --coverage
 npm run typecheck  # tsc --noEmit, strict + noUnused* + noImplicit*
 ```
 
-Obsidian loads `main.js` + `manifest.json` + `styles.css`. VS Code loads `dist/extension.js` (command **Notes Mindmap: Open Map**) which reads the `mindmap` block from the active note. `main.js` and `dist/` are generated (gitignored).
+Obsidian loads `main.js` + `manifest.json` + `styles.css`. VS Code loads `dist/extension.js` (command **Markdown Mindmap: Open Map**) which reads the `mindmap` block from the active note. `main.js` and `dist/` are generated (gitignored).
 
 ## Conventions
 

@@ -1,4 +1,4 @@
-A self-contained demo of the **Notes Mindmap** plugin. It reads only the notes under
+A self-contained demo of the **Markdown Mindmap** plugin. It reads only the notes under
 `mindmap-demo/` and does not touch the strategy tree. Open this note in Obsidian (Reading or
 Live Preview) to see the rendered map.
 
