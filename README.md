@@ -98,14 +98,14 @@ filter: [status]
 
 **Each level**
 
-| Key     | Type       | Meaning                                                                                                                     |
-| ------- | ---------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `id`    | string     | Unique id, referenced by edges. **Required.**                                                                               |
-| `from`  | string     | Folder to read notes from (recursive). **Required.**                                                                        |
-| `label` | string     | Column header.                                                                                                              |
-| `color` | hex string | Column / card-border colour. Defaults cycle the [flatuicolors _defo_](https://flatuicolors.com/palette/defo) palette.       |
-| `where` | map        | Keep only notes whose frontmatter matches, e.g. `{ parentId: null }` (a `null` target matches null, empty, **or** missing). |
-| `card`  | map        | Which fields render on the card (below).                                                                                    |
+| Key     | Type       | Meaning                                                                                                                                                                                                                                              |
+| ------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`    | string     | Unique id, referenced by edges. **Required.**                                                                                                                                                                                                        |
+| `from`  | string     | Folder to read notes from (recursive). **Required.**                                                                                                                                                                                                 |
+| `label` | string     | Column header.                                                                                                                                                                                                                                       |
+| `color` | hex string | Column / card-border colour. Defaults cycle the [flatuicolors _defo_](https://flatuicolors.com/palette/defo) palette.                                                                                                                                |
+| `where` | map        | Keep only notes whose frontmatter matches a value, e.g. `{ horizon: now }` to use only drivers with `horizon: now`, or `{ parentId: null }` to keep top-level notes (a `null` target matches null, empty, **or** missing). Multiple keys are AND-ed. |
+| `card`  | map        | Which fields render on the card (below).                                                                                                                                                                                                             |
 
 **Each card**
 
