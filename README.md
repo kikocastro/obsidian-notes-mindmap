@@ -4,6 +4,8 @@ An [Obsidian](https://obsidian.md) plugin that renders configurable mind maps (l
 
 Point it at some folders, tell it which frontmatter field links each note to its parent, and it draws the graph: a column per level, curved edges, hover to highlight a node's lineage, click to open the note, collapse/expand subtrees, filter, and search.
 
+It ships as **two adapters over one shared core** (`src/graph.ts`): the **Obsidian plugin** (the full experience described below, rendered inline in a note) and a **VS Code extension** (a command opens the map in a panel — see [VS Code](#vs-code)). The feature list below describes the Obsidian plugin; the VS Code adapter is intentionally minimal for now (render + pan/zoom + click-to-open).
+
 ## Features
 
 - **Live from frontmatter.** Folders become columns; frontmatter links become edges. Add or remove a note and the map updates.
@@ -191,7 +193,21 @@ ln -s "$(pwd)" "<your-vault>/.obsidian/plugins/notes-mindmap"
 
 ### VS Code
 
-The same core also drives a VS Code extension (`src/vscode/`). `npm run build` emits `dist/extension.js` + `dist/webview.js`. Open the repo in VS Code and press `F5` to launch an Extension Development Host, open a markdown note containing a ` ```mindmap ` block, then run **Notes Mindmap: Open Map** from the command palette. It reads the workspace's markdown frontmatter, runs the shared layout, and renders the map in a webview (pan, zoom, click a card to open the note). The pure logic lives in `src/graph.ts`; each adapter only handles reading notes and drawing.
+The same core also drives a VS Code extension (`src/vscode/`). Unlike Obsidian, it does **not** render inline in the editor — you run a command and the map opens in a panel.
+
+**Run it from source:**
+
+1. Open this repo's folder in VS Code (the adapter lives in `src/vscode/`).
+2. Press `F5` (Run and Debug → **Run Extension**). It builds, then opens an **Extension Development Host** window already pointed at `examples/`.
+3. In that window, open a markdown note that contains a ` ```mindmap ` block (e.g. `mindmap-demo/Mindmap demo.md`).
+4. Command Palette (`Cmd/Ctrl+Shift+P`) → **Notes Mindmap: Open Map**. The graph opens in a panel beside the note: drag to pan, scroll to zoom, click a card to open that note.
+
+**Notes:**
+
+- **Config source:** the active note's first ` ```mindmap ` block (same YAML as Obsidian).
+- **`from:` paths are relative to the workspace root**, and links resolve by note basename or `title` frontmatter (there's no vault link index outside Obsidian).
+- **Visuals follow your VS Code theme** (via `--vscode-*` variables), so the map looks different from the Obsidian version by design.
+- **Current scope:** render + column headers + pan/zoom + click-to-open. The toolbar (search, filter chips, fullscreen, reset), collapse toggles, and the note dialog are Obsidian-only for now.
 
 ## Limits
 
