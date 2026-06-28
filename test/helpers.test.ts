@@ -7,6 +7,7 @@ import {
   fieldArr,
   num,
   countByCat,
+  normalizeBars,
   wrap,
   catColor,
   inFolder,
@@ -72,7 +73,9 @@ describe("getPath", () => {
   });
 
   it("reaches into a dotted nested path", () => {
-    expect(getPath({ customFields: { serves: "x" } }, "customFields.serves")).toBe("x");
+    expect(
+      getPath({ customFields: { serves: "x" } }, "customFields.serves")
+    ).toBe("x");
   });
 
   it("returns undefined for a missing path", () => {
@@ -146,7 +149,7 @@ describe("num", () => {
 describe("countByCat", () => {
   it("categorises by trailing-parens text and sorts by count desc then name", () => {
     expect(
-      countByCat({ d: ["Acme (client)", "X (client)", "Y (prospect)"] }, "d"),
+      countByCat({ d: ["Acme (client)", "X (client)", "Y (prospect)"] }, "d")
     ).toEqual([
       ["client", 2],
       ["prospect", 1],
@@ -164,6 +167,33 @@ describe("countByCat", () => {
   it("returns [] for a missing key", () => {
     expect(countByCat({ d: [] }, undefined)).toEqual([]);
   });
+
+  it("mode 'value' keeps the whole value, not just the trailing-parens text", () => {
+    expect(
+      countByCat({ d: ["Acme (client)", "Acme (client)"] }, "d", "value")
+    ).toEqual([["acme (client)", 2]]);
+  });
+});
+
+describe("normalizeBars", () => {
+  it("wraps a string field-name in a BarCfg", () => {
+    expect(normalizeBars("demand")).toEqual({ field: "demand" });
+  });
+
+  it("passes an object form through", () => {
+    const cfg = {
+      field: "demand",
+      category: "value" as const,
+      colors: { client: "#fff" },
+    };
+    expect(normalizeBars(cfg)).toBe(cfg);
+  });
+
+  it("returns null for missing or fieldless config", () => {
+    expect(normalizeBars(undefined)).toBeNull();
+    expect(normalizeBars("")).toBeNull();
+    expect(normalizeBars({ field: "" })).toBeNull();
+  });
 });
 
 describe("wrap", () => {
@@ -171,9 +201,14 @@ describe("wrap", () => {
     const lines = wrap("one two three four five six", 80, 14, 5);
     expect(lines.length).toBeGreaterThan(1);
     // every original word is preserved across the wrapped lines
-    expect(lines.join(" ").split(/\s+/).sort()).toEqual(
-      ["five", "four", "one", "six", "three", "two"],
-    );
+    expect(lines.join(" ").split(/\s+/).sort()).toEqual([
+      "five",
+      "four",
+      "one",
+      "six",
+      "three",
+      "two",
+    ]);
   });
 
   it("never exceeds the max line count", () => {
@@ -198,6 +233,13 @@ describe("catColor", () => {
     expect(catColor("mystery", 1)).toBe(AUTO_COLORS[1]);
     // wraps around the palette length
     expect(catColor("mystery", AUTO_COLORS.length)).toBe(AUTO_COLORS[0]);
+  });
+
+  it("uses a supplied colours map over the built-in defaults", () => {
+    const colors = { client: "#abcdef" };
+    expect(catColor("client", 0, colors)).toBe("#abcdef");
+    // a category absent from the supplied map falls through to AUTO (not the built-in client/prospect map)
+    expect(catColor("prospect", 1, colors)).toBe(AUTO_COLORS[1]);
   });
 });
 
@@ -238,7 +280,9 @@ describe("matchesWhere", () => {
   });
 
   it("drops a note with a real value when where requires null", () => {
-    expect(matchesWhere({ parentId: "[[Parent]]" }, { parentId: null })).toBe(false);
+    expect(matchesWhere({ parentId: "[[Parent]]" }, { parentId: null })).toBe(
+      false
+    );
   });
 
   it("compares a non-null value via fieldStr equality", () => {
@@ -247,8 +291,18 @@ describe("matchesWhere", () => {
   });
 
   it("supports a dotted where key", () => {
-    expect(matchesWhere({ customFields: { kind: "lead" } }, { "customFields.kind": "lead" })).toBe(true);
-    expect(matchesWhere({ customFields: { kind: "lead" } }, { "customFields.kind": "x" })).toBe(false);
+    expect(
+      matchesWhere(
+        { customFields: { kind: "lead" } },
+        { "customFields.kind": "lead" }
+      )
+    ).toBe(true);
+    expect(
+      matchesWhere(
+        { customFields: { kind: "lead" } },
+        { "customFields.kind": "x" }
+      )
+    ).toBe(false);
   });
 
   it("returns true when where is undefined", () => {

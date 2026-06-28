@@ -18,7 +18,7 @@ Point it at some folders, tell it which frontmatter field links each note to its
 
 ## How it works
 
-A map is a list of **levels**. Each level reads notes from a `from:` folder and becomes a **column** (left to right, in the order you list them). **Edges** connect levels: an edge says *"notes in the child level point up to a note in the parent level via frontmatter field X"*.
+A map is a list of **levels**. Each level reads notes from a `from:` folder and becomes a **column** (left to right, in the order you list them). **Edges** connect levels: an edge says _"notes in the child level point up to a note in the parent level via frontmatter field X"_.
 
 ```
  LEVEL 0          LEVEL 1              LEVEL 2
@@ -34,12 +34,14 @@ A map is a list of **levels**. Each level reads notes from a `from:` folder and 
 ## Install
 
 ### Manual
+
 1. Get the three build files (`main.js`, `manifest.json`, `styles.css`) — either from a [Release](../../releases) or by building from source (`npm install && npm run build`).
 2. Copy them into `<your-vault>/.obsidian/plugins/notes-mindmap/`.
 3. Reload Obsidian, then **Settings → Community plugins → enable "Notes Mindmap"**.
 
 ### BRAT
-Once a release is published, install with [BRAT](https://github.com/TfTHacker/obsidian42-brat): *Add beta plugin* → `kikocastro/obsidian-notes-mindmap`. BRAT-managed plugins also survive Obsidian Sync, unlike a hand-copied folder.
+
+Once a release is published, install with [BRAT](https://github.com/TfTHacker/obsidian42-brat): _Add beta plugin_ → `kikocastro/obsidian-notes-mindmap`. BRAT-managed plugins also survive Obsidian Sync, unlike a hand-copied folder.
 
 ## Quick start
 
@@ -74,46 +76,70 @@ filter: [status]
 
 **Top level**
 
-| Key | Type | Meaning |
-|-----|------|---------|
-| `title` | string | Heading in the toolbar. |
-| `height` | number | Component height in px (default `900`). |
-| `levels` | list | Columns, left to right. **Required.** |
-| `edges` | list | Parent → child links between levels. |
+| Key      | Type            | Meaning                                                      |
+| -------- | --------------- | ------------------------------------------------------------ |
+| `title`  | string          | Heading in the toolbar.                                      |
+| `height` | number          | Component height in px (default `900`).                      |
+| `levels` | list            | Columns, left to right. **Required.**                        |
+| `edges`  | list            | Parent → child links between levels.                         |
 | `filter` | list of strings | Frontmatter properties exposed as multi-select chip filters. |
+| `layout` | map             | Override card/column sizing (below). All keys optional.      |
+
+**`layout`** (all optional, defaults shown)
+
+| Key          | Default | Meaning                                                                                    |
+| ------------ | ------- | ------------------------------------------------------------------------------------------ |
+| `cardWidth`  | `270`   | Card width in px.                                                                          |
+| `cardHeight` | `80`    | Card height in px.                                                                         |
+| `columnGap`  | `150`   | Horizontal gap between columns.                                                            |
+| `rowGap`     | `12`    | Vertical gap between stacked cards.                                                        |
+| `top`        | `64`    | Top margin before the first card.                                                          |
+| `titleLines` | `2`     | Title lines shown before truncating. Set `3` for taller cards. Bump `cardHeight` to match. |
 
 **Each level**
 
-| Key | Type | Meaning |
-|-----|------|---------|
-| `id` | string | Unique id, referenced by edges. **Required.** |
-| `from` | string | Folder to read notes from (recursive). **Required.** |
-| `label` | string | Column header. |
-| `color` | hex string | Column / card-border colour. Defaults cycle the [flatuicolors *defo*](https://flatuicolors.com/palette/defo) palette. |
-| `where` | map | Keep only notes whose frontmatter matches, e.g. `{ parentId: null }` (a `null` target matches null, empty, **or** missing). |
-| `card` | map | Which fields render on the card (below). |
+| Key     | Type       | Meaning                                                                                                                     |
+| ------- | ---------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `id`    | string     | Unique id, referenced by edges. **Required.**                                                                               |
+| `from`  | string     | Folder to read notes from (recursive). **Required.**                                                                        |
+| `label` | string     | Column header.                                                                                                              |
+| `color` | hex string | Column / card-border colour. Defaults cycle the [flatuicolors _defo_](https://flatuicolors.com/palette/defo) palette.       |
+| `where` | map        | Keep only notes whose frontmatter matches, e.g. `{ parentId: null }` (a `null` target matches null, empty, **or** missing). |
+| `card`  | map        | Which fields render on the card (below).                                                                                    |
 
 **Each card**
 
-| Key | Type | Renders |
-|-----|------|---------|
-| `title` | field | Bold title (falls back to the file name). |
-| `sub` | field | Subtitle line. |
-| `meta` | list of fields | A muted `·`-joined line. |
-| `progress` | field (0–100) | A progress bar. |
-| `bars` | list field | A stacked count-by-category bar. Category = text in trailing parens: `"Acme (client)"` → `client`. |
+| Key        | Type             | Renders                                                                                                                                                                  |
+| ---------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `title`    | field            | Bold title (falls back to the file name).                                                                                                                                |
+| `sub`      | field            | Subtitle line.                                                                                                                                                           |
+| `meta`     | list of fields   | A muted `·`-joined line.                                                                                                                                                 |
+| `progress` | field (0–100)    | A progress bar.                                                                                                                                                          |
+| `bars`     | field **or** map | A stacked count-by-category bar (below).                                                                                                                                 |
+| `labels`   | list of fields   | Small value pills along the card's top strip, one per field (e.g. `[kind, horizon, stage]`). Empty/missing fields drop out; pills that don't fit on one row are skipped. |
+
+**`bars`** — either a field name (string) or a map:
+
+| Key        | Type                | Meaning                                                                                                                                            |
+| ---------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `field`    | field               | The list field to count. **Required.**                                                                                                             |
+| `category` | `parens` \| `value` | How to derive each category. `parens` (default): text in trailing parens, else the value (`"Acme (client)"` → `client`). `value`: the whole value. |
+| `colors`   | map                 | `category → hex`. Categories not listed cycle the auto palette. Omit to use the built-in `client`/`prospect`/`trial`/`customer` defaults.          |
+
+`bars: demand` is shorthand for `bars: { field: demand, category: parens }`.
 
 **Each edge**
 
-| Key | Type | Meaning |
-|-----|------|---------|
-| `from` | level id | Parent level. |
-| `to` | level id | Child level. |
-| `via` | field | The frontmatter field holding the link. By default it lives on the **`to`** notes and points up to a **`from`** note. Dotted paths work (`customFields.serves`). |
-| `reverse` | bool | Set `true` when the field lives on the **`from`** notes and points down (e.g. a `serves:` list). |
-| `secondary` | bool | Draw the edge **dashed** and keep it out of the layout spine (for "also relates to" cross-links). |
+| Key         | Type     | Meaning                                                                                                                                                          |
+| ----------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `from`      | level id | Parent level.                                                                                                                                                    |
+| `to`        | level id | Child level.                                                                                                                                                     |
+| `via`       | field    | The frontmatter field holding the link. By default it lives on the **`to`** notes and points up to a **`from`** note. Dotted paths work (`customFields.serves`). |
+| `reverse`   | bool     | Set `true` when the field lives on the **`from`** notes and points down (e.g. a `serves:` list).                                                                 |
+| `secondary` | bool     | Draw the edge **dashed** and keep it out of the layout spine (for "also relates to" cross-links).                                                                |
 
 ### How links resolve
+
 A `via` value is matched, in order, against: Obsidian's own link resolution (`[[wikilink]]`), then the target's **basename**, then its `title` frontmatter. A value may be a single link or a list. A note's **first non-secondary** parent is its layout parent (single-parent tree); any extra parents still draw edges.
 
 ## Advanced example
@@ -127,7 +153,7 @@ height: 860
 levels:
   - { id: northstar, label: NORTH STAR,   from: strategy/north-star,   color: "#1abc9c", card: { title: title, sub: metric } }
   - { id: drivers,   label: DRIVERS,       from: strategy/drivers,      color: "#9b59b6", card: { title: title, sub: metric } }
-  - { id: opps,      label: OPPORTUNITIES, from: strategy/opportunities, color: "#e67e22", card: { title: title, meta: [kind, horizon], bars: demand } }
+  - { id: opps,      label: OPPORTUNITIES, from: strategy/opportunities, color: "#e67e22", card: { title: title, labels: [kind, horizon], bars: demand } }
   - { id: roadmap,   label: ROADMAP,       from: strategy/roadmap,      color: "#e74c3c", where: { parentId: null }, card: { title: title, meta: [status], progress: progress } }
 edges:
   - { from: drivers, to: opps,    via: ladders-to }

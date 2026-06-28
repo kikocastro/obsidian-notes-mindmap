@@ -6,25 +6,111 @@
 // ============================================================================
 
 // flatuicolors.com/palette/defo — the original Flat UI palette
-export const AUTO_COLORS = ["#1abc9c", "#3498db", "#9b59b6", "#e67e22", "#e74c3c", "#f1c40f", "#16a085", "#2980b9", "#8e44ad", "#d35400"];
+export const AUTO_COLORS = [
+  "#1abc9c",
+  "#3498db",
+  "#9b59b6",
+  "#e67e22",
+  "#e74c3c",
+  "#f1c40f",
+  "#16a085",
+  "#2980b9",
+  "#8e44ad",
+  "#d35400",
+];
 // bar-chart category -> colour, with a sensible default for client/prospect/trial
-export const CATEGORY_COLORS: Record<string, string> = { client: "#2ecc71", prospect: "#f39c12", trial: "#3498db", customer: "#2ecc71", prospect_: "#f39c12" };
+export const CATEGORY_COLORS: Record<string, string> = {
+  client: "#2ecc71",
+  prospect: "#f39c12",
+  trial: "#3498db",
+  customer: "#2ecc71",
+  prospect_: "#f39c12",
+};
 
-// layout constants
-export const CARD_W = 270, NODE_H = 80, V_GAP = 12, COL_GAP = 150, TOP = 64;
+// layout defaults (each overridable per-map via cfg.layout)
+export const CARD_W = 270,
+  NODE_H = 80,
+  V_GAP = 12,
+  COL_GAP = 150,
+  TOP = 64;
 
-export interface CardCfg { title?: string; sub?: string; meta?: string[]; progress?: string; bars?: string; }
-export interface LevelCfg { id: string; label?: string; from: string; color?: string; card?: CardCfg; where?: Record<string, any>; }
-export interface EdgeCfg { from: string; to: string; via: string; reverse?: boolean; secondary?: boolean; }
-export interface MapCfg { title?: string; height?: number; levels: LevelCfg[]; edges?: EdgeCfg[]; filter?: string[]; }
+// per-map layout overrides (YAML `layout:`); omitted keys fall back to the defaults above
+export interface LayoutCfg {
+  cardWidth?: number;
+  cardHeight?: number;
+  columnGap?: number;
+  rowGap?: number;
+  top?: number;
+  titleLines?: number;
+}
+export interface ResolvedLayout {
+  cardW: number;
+  nodeH: number;
+  colGap: number;
+  vGap: number;
+  top: number;
+  titleLines: number;
+}
+export const resolveLayout = (l?: LayoutCfg): ResolvedLayout => ({
+  cardW: l?.cardWidth ?? CARD_W,
+  nodeH: l?.cardHeight ?? NODE_H,
+  colGap: l?.columnGap ?? COL_GAP,
+  vGap: l?.rowGap ?? V_GAP,
+  top: l?.top ?? TOP,
+  titleLines: l?.titleLines ?? 2, // node-title lines before truncating (set 3 for a taller card)
+});
+
+// bar chart: a field-name string (legacy) or an object with category mode + colours
+export interface BarCfg {
+  field: string;
+  category?: "parens" | "value";
+  colors?: Record<string, string>;
+}
+export interface CardCfg {
+  title?: string;
+  sub?: string;
+  meta?: string[];
+  progress?: string;
+  bars?: string | BarCfg;
+  labels?: string[];
+}
+export interface LevelCfg {
+  id: string;
+  label?: string;
+  from: string;
+  color?: string;
+  card?: CardCfg;
+  where?: Record<string, any>;
+}
+export interface EdgeCfg {
+  from: string;
+  to: string;
+  via: string;
+  reverse?: boolean;
+  secondary?: boolean;
+}
+export interface MapCfg {
+  title?: string;
+  height?: number;
+  levels: LevelCfg[];
+  edges?: EdgeCfg[];
+  filter?: string[];
+  layout?: LayoutCfg;
+}
 
 // the minimal note shape the pure logic needs (a TFile-free stand-in)
-export interface NoteLike { path: string; basename: string; frontmatter: Record<string, any>; }
+export interface NoteLike {
+  path: string;
+  basename: string;
+  frontmatter: Record<string, any>;
+}
 // wikilink key + the path it was found in -> resolved note path, or null
-export interface Resolver { (key: string, fromPath: string): string | null; }
+export interface Resolver {
+  (key: string, fromPath: string): string | null;
+}
 
 export interface MNode {
-  id: string;          // file path (unique key)
+  id: string; // file path (unique key)
   levelIdx: number;
   path: string;
   basename: string;
@@ -32,15 +118,19 @@ export interface MNode {
   title: string;
   sub: string;
   meta: string;
+  labels: string[]; // small pill values rendered on the card (card.labels)
   color: string;
   levelLabel: string;
-  progress: number | null;       // 0-100, or null
-  bars: [string, number][];      // category -> count
-  collIdx: number;     // order within its source folder (layout tiebreak)
+  progress: number | null; // 0-100, or null
+  bars: [string, number, string][]; // category -> count -> resolved colour
+  collIdx: number; // order within its source folder (layout tiebreak)
   parents: Set<string>;
   children: Set<string>;
-  primaryParent: string | null;  // the one solid parent (secondary links don't set this)
-  x?: number; y?: number; w?: number; h?: number;
+  primaryParent: string | null; // the one solid parent (secondary links don't set this)
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
 }
 
 // ---- helpers -------------------------------------------------------------
@@ -57,15 +147,24 @@ export const linkKey = (raw: any): string => {
   return (m ? m[1] : s).trim();
 };
 
-export const asArray = (v: any): any[] => (Array.isArray(v) ? v : v == null || v === "" ? [] : [v]);
+export const asArray = (v: any): any[] =>
+  Array.isArray(v) ? v : v == null || v === "" ? [] : [v];
 
-export const wrap = (s: string, width: number, size: number, max: number): string[] => {
+export const wrap = (
+  s: string,
+  width: number,
+  size: number,
+  max: number
+): string[] => {
   const cpl = Math.max(8, Math.floor(width / (size * 0.55)));
-  const words = String(s).split(/\s+/), out: string[] = [];
+  const words = String(s).split(/\s+/),
+    out: string[] = [];
   let cur = "";
   for (const w of words) {
-    if ((cur + " " + w).trim().length > cpl) { out.push(cur); cur = w; }
-    else cur = (cur + " " + w).trim();
+    if ((cur + " " + w).trim().length > cpl) {
+      out.push(cur);
+      cur = w;
+    } else cur = (cur + " " + w).trim();
   }
   if (cur) out.push(cur);
   return out.slice(0, max);
@@ -86,23 +185,47 @@ export const fieldArr = (fm: Record<string, any>, key?: string): string[] =>
 
 // per-level include filter, e.g. { parentId: null } keeps only top-level roadmap tasks.
 // a `null` target matches null, missing, OR empty (stringifies to "") — the strategy map relies on this.
-export const matchesWhere = (fm: Record<string, any>, where?: Record<string, any>): boolean =>
-  !where || Object.keys(where).every((k) =>
-    where[k] === null ? fieldStr(fm, k) === "" : fieldStr(fm, k) === String(where[k]));
+export const matchesWhere = (
+  fm: Record<string, any>,
+  where?: Record<string, any>
+): boolean =>
+  !where ||
+  Object.keys(where).every((k) =>
+    where[k] === null
+      ? fieldStr(fm, k) === ""
+      : fieldStr(fm, k) === String(where[k])
+  );
 
-// list field -> [category, count]; category = text in trailing parens, else the value itself
-export const countByCat = (fm: Record<string, any>, key?: string): [string, number][] => {
+// list field -> [category, count]. mode "parens" (default): category = text in
+// trailing parens, else the value. mode "value": category = the whole value.
+export const countByCat = (
+  fm: Record<string, any>,
+  key?: string,
+  mode: "parens" | "value" = "parens"
+): [string, number][] => {
   if (!key) return [];
   const counts: Record<string, number> = {};
   asArray(getPath(fm, key)).forEach((raw) => {
     const s = String(raw).trim();
     if (!s) return;
-    const m = s.match(/\(([^)]+)\)\s*$/);
+    const m = mode === "value" ? null : s.match(/\(([^)]+)\)\s*$/);
     const cat = (m ? m[1] : s).trim().toLowerCase();
     counts[cat] = (counts[cat] || 0) + 1;
   });
-  return Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return Object.entries(counts).sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
+  );
 };
+
+// card.bars may be a field-name string (legacy) or a BarCfg object; null when absent/invalid
+export const normalizeBars = (bars?: string | BarCfg): BarCfg | null =>
+  !bars
+    ? null
+    : typeof bars === "string"
+      ? { field: bars }
+      : bars.field
+        ? bars
+        : null;
 
 export const num = (v: any): number | null => {
   if (v == null || v === "") return null;
@@ -110,14 +233,21 @@ export const num = (v: any): number | null => {
   return isNaN(n) ? null : n;
 };
 
-export const catColor = (cat: string, i: number): string => CATEGORY_COLORS[cat] || AUTO_COLORS[i % AUTO_COLORS.length];
+// colour for a bar category: configured `colors` map (defaults to CATEGORY_COLORS), else cycle AUTO_COLORS
+export const catColor = (
+  cat: string,
+  i: number,
+  colors: Record<string, string> = CATEGORY_COLORS
+): string => colors[cat] || AUTO_COLORS[i % AUTO_COLORS.length];
 
 // children this node is the solid (primary) parent of — used by layout + collapse
 export const primKids = (nodes: Record<string, MNode>, id: string): string[] =>
   [...nodes[id].children].filter((c) => nodes[c].primaryParent === id);
 
 // throws the documented error when the map has no levels (the code-block processor catches it)
-export function validateConfig(cfg: MapCfg | null | undefined): asserts cfg is MapCfg {
+export function validateConfig(
+  cfg: MapCfg | null | undefined
+): asserts cfg is MapCfg {
   if (!cfg || !Array.isArray(cfg.levels) || !cfg.levels.length)
     throw new Error("config needs a non-empty `levels:` list.");
 }
@@ -126,26 +256,52 @@ export function validateConfig(cfg: MapCfg | null | undefined): asserts cfg is M
 
 // Folders -> columns. A note lands in its FIRST matching level only; `where`
 // filters per level; card fields are extracted into the MNode.
-export function collectNodes(cfg: MapCfg, notes: NoteLike[]): { nodes: Record<string, MNode>; byLevel: MNode[][] } {
+export function collectNodes(
+  cfg: MapCfg,
+  notes: NoteLike[]
+): { nodes: Record<string, MNode>; byLevel: MNode[][] } {
   const nodes: Record<string, MNode> = {};
   const byLevel: MNode[][] = cfg.levels.map(() => []);
   cfg.levels.forEach((lvl, li) => {
     const color = lvl.color || AUTO_COLORS[li % AUTO_COLORS.length];
-    const files = notes.filter((f) => inFolder(f.path, lvl.from)).sort((a, b) => a.path.localeCompare(b.path));
+    const files = notes
+      .filter((f) => inFolder(f.path, lvl.from))
+      .sort((a, b) => a.path.localeCompare(b.path));
     files.forEach((file, ci) => {
       if (nodes[file.path]) return; // a note appears in its first matching level only
       const fm = file.frontmatter || {};
       if (!matchesWhere(fm, lvl.where)) return; // per-level frontmatter filter (e.g. {parentId: null})
       const card = lvl.card || {};
+      const bar = normalizeBars(card.bars);
       const n: MNode = {
-        id: file.path, levelIdx: li, path: file.path, basename: file.basename, fm, color, collIdx: ci,
+        id: file.path,
+        levelIdx: li,
+        path: file.path,
+        basename: file.basename,
+        fm,
+        color,
+        collIdx: ci,
         levelLabel: lvl.label || lvl.id,
         title: fieldStr(fm, card.title) || file.basename,
         sub: fieldStr(fm, card.sub),
-        meta: (card.meta || []).map((k) => fieldStr(fm, k)).filter(Boolean).join("  ·  "),
+        meta: (card.meta || [])
+          .map((k) => fieldStr(fm, k))
+          .filter(Boolean)
+          .join("  ·  "),
+        labels: (card.labels || []).map((k) => fieldStr(fm, k)).filter(Boolean),
         progress: num(getPath(fm, card.progress)),
-        bars: countByCat(fm, card.bars),
-        parents: new Set(), children: new Set(), primaryParent: null,
+        bars: bar
+          ? countByCat(fm, bar.field, bar.category).map(
+              ([cat, c], i): [string, number, string] => [
+                cat,
+                c,
+                catColor(cat, i, bar.colors),
+              ]
+            )
+          : [],
+        parents: new Set(),
+        children: new Set(),
+        primaryParent: null,
       };
       nodes[file.path] = n;
       byLevel[li].push(n);
@@ -159,11 +315,20 @@ export function collectNodes(cfg: MapCfg, notes: NoteLike[]): { nodes: Record<st
 // Walk cfg.edges, resolve each `via` value to a node in the parent level, and
 // record parent/child links. Returns edgeKind: "primary" (solid) vs "secondary"
 // (dashed). A node's primaryParent is its FIRST non-secondary parent.
-export function buildEdges(cfg: MapCfg, nodes: Record<string, MNode>, byLevel: MNode[][], resolveLink?: Resolver): Map<string, string> {
+export function buildEdges(
+  cfg: MapCfg,
+  nodes: Record<string, MNode>,
+  byLevel: MNode[][],
+  resolveLink?: Resolver
+): Map<string, string> {
   // index each level by basename and by `title` frontmatter for link resolution
   const levelIndex = byLevel.map((arr) => {
-    const byBase: Record<string, string> = {}, byTitle: Record<string, string> = {};
-    arr.forEach((n) => { byBase[n.basename] = n.id; if (n.fm.title) byTitle[String(n.fm.title).trim()] = n.id; });
+    const byBase: Record<string, string> = {},
+      byTitle: Record<string, string> = {};
+    arr.forEach((n) => {
+      byBase[n.basename] = n.id;
+      if (n.fm.title) byTitle[String(n.fm.title).trim()] = n.id;
+    });
     return { byBase, byTitle };
   });
   const levelByIdNum: Record<string, number> = {};
@@ -177,63 +342,97 @@ export function buildEdges(cfg: MapCfg, nodes: Record<string, MNode>, byLevel: M
     const key = parentId + "|" + childId;
     if (!secondary) {
       edgeKind.set(key, "primary");
-      if (!nodes[childId].primaryParent) nodes[childId].primaryParent = parentId;
+      if (!nodes[childId].primaryParent)
+        nodes[childId].primaryParent = parentId;
     } else if (!edgeKind.has(key)) {
       edgeKind.set(key, "secondary");
     }
   };
   // resolution order: injected link resolver (e.g. Obsidian wikilink) -> basename -> `title`
-  const resolveInLevel = (li: number, raw: any, sourcePath: string): string | null => {
+  const resolveInLevel = (
+    li: number,
+    raw: any,
+    sourcePath: string
+  ): string | null => {
     const key = linkKey(raw);
     const dest = resolveLink ? resolveLink(key, sourcePath) : null;
     if (dest && nodes[dest] && nodes[dest].levelIdx === li) return dest;
     return levelIndex[li].byBase[key] || levelIndex[li].byTitle[key] || null;
   };
   (cfg.edges || []).forEach((e) => {
-    const fi = levelByIdNum[e.from], ti = levelByIdNum[e.to];
+    const fi = levelByIdNum[e.from],
+      ti = levelByIdNum[e.to];
     if (fi == null || ti == null) return;
     if (!e.reverse) {
       // `via` is a property on the `to` notes pointing up to a `from` note
-      byLevel[ti].forEach((to) => asArray(getPath(to.fm, e.via)).forEach((raw) => {
-        const fromId = resolveInLevel(fi, raw, to.path);
-        if (fromId) link(fromId, to.id, e.secondary);
-      }));
+      byLevel[ti].forEach((to) =>
+        asArray(getPath(to.fm, e.via)).forEach((raw) => {
+          const fromId = resolveInLevel(fi, raw, to.path);
+          if (fromId) link(fromId, to.id, e.secondary);
+        })
+      );
     } else {
       // `via` is a property on the `from` notes pointing down to `to` notes
-      byLevel[fi].forEach((from) => asArray(getPath(from.fm, e.via)).forEach((raw) => {
-        const toId = resolveInLevel(ti, raw, from.path);
-        if (toId) link(from.id, toId, e.secondary);
-      }));
+      byLevel[fi].forEach((from) =>
+        asArray(getPath(from.fm, e.via)).forEach((raw) => {
+          const toId = resolveInLevel(ti, raw, from.path);
+          if (toId) link(from.id, toId, e.secondary);
+        })
+      );
     }
   });
   return edgeKind;
 }
 
-export const isSecondary = (edgeKind: Map<string, string>, p: string, c: string): boolean =>
-  edgeKind.get(p + "|" + c) === "secondary";
+export const isSecondary = (
+  edgeKind: Map<string, string>,
+  p: string,
+  c: string
+): boolean => edgeKind.get(p + "|" + c) === "secondary";
 
 // ---- visibility (filters + collapse) -------------------------------------
 
 // a filter only constrains nodes that HAVE the property; multi-select is OR within a property, AND across
-export const passesFilters = (n: MNode, filters: Record<string, Set<string>>, cfg: MapCfg): boolean =>
+export const passesFilters = (
+  n: MNode,
+  filters: Record<string, Set<string>>,
+  cfg: MapCfg
+): boolean =>
   (cfg.filter || []).every((p) => {
-    const sel = filters[p]; if (!sel || !sel.size) return true;
-    const own = fieldArr(n.fm, p); if (!own.length) return true;
+    const sel = filters[p];
+    if (!sel || !sel.size) return true;
+    const own = fieldArr(n.fm, p);
+    if (!own.length) return true;
     return own.some((v) => sel.has(v));
   });
 
 // collapsed nodes hide their primary subtree (keep self); filtered-out nodes hide self + primary subtree
-export function computeVisible(nodes: Record<string, MNode>, collapsed: Set<string>, filters: Record<string, Set<string>>, cfg: MapCfg): Set<string> {
+export function computeVisible(
+  nodes: Record<string, MNode>,
+  collapsed: Set<string>,
+  filters: Record<string, Set<string>>,
+  cfg: MapCfg
+): Set<string> {
   const excluded = new Set<string>();
-  Object.values(nodes).forEach((n) => { if (!passesFilters(n, filters, cfg)) excluded.add(n.id); });
+  Object.values(nodes).forEach((n) => {
+    if (!passesFilters(n, filters, cfg)) excluded.add(n.id);
+  });
   const hidden = new Set<string>(excluded);
   [...collapsed, ...excluded].forEach((rid) => {
     if (!nodes[rid]) return;
     const stack = [...primKids(nodes, rid)];
-    while (stack.length) { const x = stack.pop()!; if (!hidden.has(x)) { hidden.add(x); stack.push(...primKids(nodes, x)); } }
+    while (stack.length) {
+      const x = stack.pop()!;
+      if (!hidden.has(x)) {
+        hidden.add(x);
+        stack.push(...primKids(nodes, x));
+      }
+    }
   });
   const vis = new Set<string>();
-  Object.values(nodes).forEach((n) => { if (!hidden.has(n.id)) vis.add(n.id); });
+  Object.values(nodes).forEach((n) => {
+    if (!hidden.has(n.id)) vis.add(n.id);
+  });
   return vis;
 }
 
@@ -242,38 +441,64 @@ export function computeVisible(nodes: Record<string, MNode>, collapsed: Set<stri
 // DFS by primary parent so siblings stay contiguous, then place right->left so a
 // parent centres on its visible primary children. Mutates x/y/w/h on each node.
 export function orderAndLayout(
-  cfg: MapCfg, nodes: Record<string, MNode>, byLevel: MNode[][], vis: Set<string>,
-): { order: string[][]; levelX: number[]; contentBottom: number; contentRight: number } {
+  cfg: MapCfg,
+  nodes: Record<string, MNode>,
+  byLevel: MNode[][],
+  vis: Set<string>
+): {
+  order: string[][];
+  levelX: number[];
+  contentBottom: number;
+  contentRight: number;
+} {
   const visN = (id: string) => vis.has(id);
-  const levelX = cfg.levels.map((_, i) => 40 + i * (CARD_W + COL_GAP));
+  const { cardW, nodeH, colGap, vGap, top: TOP } = resolveLayout(cfg.layout);
+  const levelX = cfg.levels.map((_, i) => 40 + i * (cardW + colGap));
 
   const order: string[][] = cfg.levels.map(() => []);
   const seen = new Set<string>();
-  const childrenSorted = (n: MNode) => primKids(nodes, n.id).filter(visN).map((id) => nodes[id]).sort((a, b) => a.collIdx - b.collIdx);
+  const childrenSorted = (n: MNode) =>
+    primKids(nodes, n.id)
+      .filter(visN)
+      .map((id) => nodes[id])
+      .sort((a, b) => a.collIdx - b.collIdx);
   const dfs = (n: MNode) => {
-    if (seen.has(n.id)) return; seen.add(n.id);
+    if (seen.has(n.id)) return;
+    seen.add(n.id);
     order[n.levelIdx].push(n.id);
     childrenSorted(n).forEach(dfs);
   };
   byLevel[0].filter((n) => visN(n.id)).forEach(dfs);
   // any visible node not reached from a root (parent filtered/collapsed/secondary-only) — append to its level
-  cfg.levels.forEach((_, li) => byLevel[li].forEach((n) => { if (visN(n.id) && !seen.has(n.id)) { seen.add(n.id); order[li].push(n.id); } }));
+  cfg.levels.forEach((_, li) =>
+    byLevel[li].forEach((n) => {
+      if (visN(n.id) && !seen.has(n.id)) {
+        seen.add(n.id);
+        order[li].push(n.id);
+      }
+    })
+  );
 
   const cursor = cfg.levels.map(() => TOP);
   for (let li = cfg.levels.length - 1; li >= 0; li--) {
     for (const id of order[li]) {
       const n = nodes[id];
-      const kids = primKids(nodes, id).filter((c) => visN(c) && nodes[c].levelIdx === li + 1).map((c) => nodes[c]);
-      n.w = CARD_W; n.h = NODE_H; n.x = levelX[li];
+      const kids = primKids(nodes, id)
+        .filter((c) => visN(c) && nodes[c].levelIdx === li + 1)
+        .map((c) => nodes[c]);
+      n.w = cardW;
+      n.h = nodeH;
+      n.x = levelX[li];
       if (kids.length) {
-        const top = Math.min(...kids.map((k) => k.y!)), bot = Math.max(...kids.map((k) => k.y! + k.h!));
-        n.y = Math.max(cursor[li], (top + bot) / 2 - NODE_H / 2);
+        const top = Math.min(...kids.map((k) => k.y!)),
+          bot = Math.max(...kids.map((k) => k.y! + k.h!));
+        n.y = Math.max(cursor[li], (top + bot) / 2 - nodeH / 2);
       } else n.y = cursor[li];
-      cursor[li] = n.y + NODE_H + V_GAP;
+      cursor[li] = n.y + nodeH + vGap;
     }
   }
   const contentBottom = Math.max(TOP, ...cfg.levels.map((_, li) => cursor[li]));
-  const contentRight = levelX[cfg.levels.length - 1] + CARD_W;
+  const contentRight = levelX[cfg.levels.length - 1] + cardW;
   return { order, levelX, contentBottom, contentRight };
 }
 
@@ -281,4 +506,6 @@ export function orderAndLayout(
 
 // case-insensitive match across title + sub + meta; empty term matches everything
 export const searchMatch = (n: MNode, term: string): boolean =>
-  (n.title + " " + n.sub + " " + n.meta).toLowerCase().includes(term.toLowerCase());
+  (n.title + " " + n.sub + " " + n.meta)
+    .toLowerCase()
+    .includes(term.toLowerCase());

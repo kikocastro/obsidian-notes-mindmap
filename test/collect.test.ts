@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { collectNodes, AUTO_COLORS } from "../src/graph";
+import { collectNodes, AUTO_COLORS, CATEGORY_COLORS } from "../src/graph";
 import type { MapCfg } from "../src/graph";
 import { mk } from "./fixtures";
 
@@ -13,15 +13,23 @@ describe("collectNodes — inFolder selection", () => {
       mk("areaX/NotChild.md"), // prefix-only, not a folder boundary
     ];
     const { nodes, byLevel } = collectNodes(cfg, notes);
-    expect(Object.keys(nodes).sort()).toEqual(["area/Direct.md", "area/sub/Nested.md"]);
-    expect(byLevel[0].map((n) => n.path)).toEqual(["area/Direct.md", "area/sub/Nested.md"]);
+    expect(Object.keys(nodes).sort()).toEqual([
+      "area/Direct.md",
+      "area/sub/Nested.md",
+    ]);
+    expect(byLevel[0].map((n) => n.path)).toEqual([
+      "area/Direct.md",
+      "area/sub/Nested.md",
+    ]);
   });
 });
 
 describe("collectNodes — where: { parentId: null }", () => {
   // null / empty-string / missing are all treated as "no parent" (load-bearing for the strategy map)
   it("keeps explicit-null and missing parentId and drops a real parentId value", () => {
-    const cfg: MapCfg = { levels: [{ id: "roots", from: "r", where: { parentId: null } }] };
+    const cfg: MapCfg = {
+      levels: [{ id: "roots", from: "r", where: { parentId: null } }],
+    };
     const notes = [
       mk("r/ExplicitNull.md", { parentId: null }),
       mk("r/Missing.md", {}),
@@ -36,7 +44,9 @@ describe("collectNodes — where: { parentId: null }", () => {
   });
 
   it("keeps an empty-string parentId (treated as null)", () => {
-    const cfg: MapCfg = { levels: [{ id: "roots", from: "r", where: { parentId: null } }] };
+    const cfg: MapCfg = {
+      levels: [{ id: "roots", from: "r", where: { parentId: null } }],
+    };
     const notes = [mk("r/Empty.md", { parentId: "" })];
     const { nodes } = collectNodes(cfg, notes);
     expect(nodes["r/Empty.md"]).toBeDefined();
@@ -54,7 +64,10 @@ describe("collectNodes — first-matching-level-only", () => {
     const notes = [mk("shared/Note.md"), mk("loose/Other.md")];
     const { nodes, byLevel } = collectNodes(cfg, notes);
     expect(Object.keys(nodes)).toHaveLength(2);
-    expect(byLevel[0].map((n) => n.path).sort()).toEqual(["loose/Other.md", "shared/Note.md"]);
+    expect(byLevel[0].map((n) => n.path).sort()).toEqual([
+      "loose/Other.md",
+      "shared/Note.md",
+    ]);
     expect(byLevel[1]).toHaveLength(0);
     expect(nodes["shared/Note.md"].levelIdx).toBe(0);
   });
@@ -79,11 +92,20 @@ describe("collectNodes — card extraction", () => {
   it("sub is the resolved single field; meta joins multiple fields and drops empties", () => {
     const cfg: MapCfg = {
       levels: [
-        { id: "lv", from: "c", card: { sub: "kpi", meta: ["status", "owner", "blank"] } },
+        {
+          id: "lv",
+          from: "c",
+          card: { sub: "kpi", meta: ["status", "owner", "blank"] },
+        },
       ],
     };
     const notes = [
-      mk("c/Note.md", { kpi: "north star", status: "wip", owner: "[[Alice|A]]", blank: "" }),
+      mk("c/Note.md", {
+        kpi: "north star",
+        status: "wip",
+        owner: "[[Alice|A]]",
+        blank: "",
+      }),
     ];
     const { nodes } = collectNodes(cfg, notes);
     expect(nodes["c/Note.md"].sub).toBe("north star");
@@ -108,22 +130,101 @@ describe("collectNodes — card extraction", () => {
     expect(nodes["c/NonNumeric.md"].progress).toBeNull();
   });
 
-  it("bars uses countByCat: groups by trailing-parens category, sorted by count desc", () => {
+  it("bars (string form) groups by trailing-parens category with default colours, sorted by count desc", () => {
     const cfg: MapCfg = {
       levels: [{ id: "lv", from: "c", card: { bars: "accounts" } }],
     };
     const notes = [
       mk("c/Note.md", {
-        accounts: ["Acme (client)", "Beta (prospect)", "Gamma (client)", "Delta (client)"],
+        accounts: [
+          "Acme (client)",
+          "Beta (prospect)",
+          "Gamma (client)",
+          "Delta (client)",
+        ],
       }),
       mk("c/NoBars.md", {}),
     ];
     const { nodes } = collectNodes(cfg, notes);
     expect(nodes["c/Note.md"].bars).toEqual([
-      ["client", 3],
-      ["prospect", 1],
+      ["client", 3, CATEGORY_COLORS.client],
+      ["prospect", 1, CATEGORY_COLORS.prospect],
     ]);
     expect(nodes["c/NoBars.md"].bars).toEqual([]);
+  });
+
+  it("bars (object form) honours category:value and a custom colours map, AUTO for the rest", () => {
+    const cfg: MapCfg = {
+      levels: [
+        {
+          id: "lv",
+          from: "c",
+          card: {
+            bars: {
+              field: "stage",
+              category: "value",
+              colors: { lead: "#111111" },
+            },
+          },
+        },
+      ],
+    };
+    const notes = [
+      mk("c/Note.md", { stage: ["Lead (north)", "Lead (north)", "Won"] }),
+    ];
+    const { nodes } = collectNodes(cfg, notes);
+    // category:value keeps the whole value (parens not stripped); "lead (north)" x2 sorts first
+    expect(nodes["c/Note.md"].bars).toEqual([
+      ["lead (north)", 2, AUTO_COLORS[0]], // not in custom map -> AUTO[0]
+      ["won", 1, AUTO_COLORS[1]],
+    ]);
+  });
+
+  it("bars object form maps a configured category to its custom colour", () => {
+    const cfg: MapCfg = {
+      levels: [
+        {
+          id: "lv",
+          from: "c",
+          card: { bars: { field: "d", colors: { client: "#abcdef" } } },
+        },
+      ],
+    };
+    const notes = [mk("c/Note.md", { d: ["A (client)", "B (other)"] })];
+    const { nodes } = collectNodes(cfg, notes);
+    expect(nodes["c/Note.md"].bars).toEqual([
+      ["client", 1, "#abcdef"],
+      ["other", 1, AUTO_COLORS[1]], // unconfigured -> AUTO by index
+    ]);
+  });
+
+  it("labels resolves each configured field to a pill value, dropping empties", () => {
+    const cfg: MapCfg = {
+      levels: [
+        {
+          id: "lv",
+          from: "c",
+          card: { labels: ["kind", "horizon", "stage", "blank"] },
+        },
+      ],
+    };
+    const notes = [
+      mk("c/Note.md", {
+        kind: "opportunity",
+        horizon: "now",
+        stage: "cross-cutting",
+        blank: "",
+      }),
+      mk("c/None.md", {}),
+    ];
+    const { nodes } = collectNodes(cfg, notes);
+    // one pill per configured field, in order; empty/missing fields drop out
+    expect(nodes["c/Note.md"].labels).toEqual([
+      "opportunity",
+      "now",
+      "cross-cutting",
+    ]);
+    expect(nodes["c/None.md"].labels).toEqual([]);
   });
 });
 
@@ -149,7 +250,7 @@ describe("collectNodes — color", () => {
       from: `f${i}`,
     }));
     const cfg: MapCfg = { levels };
-    const notes = levels.map((l, i) => mk(`f${i}/N${i}.md`));
+    const notes = levels.map((_, i) => mk(`f${i}/N${i}.md`));
     const { nodes } = collectNodes(cfg, notes);
     const lastIdx = AUTO_COLORS.length; // wraps to 0
     expect(nodes[`f${lastIdx}/N${lastIdx}.md`].color).toBe(AUTO_COLORS[0]);
@@ -160,11 +261,7 @@ describe("collectNodes — collIdx", () => {
   it("reflects sorted-by-path order within the source folder", () => {
     const cfg: MapCfg = { levels: [{ id: "lv", from: "s" }] };
     // supplied out of order; collIdx should track the path-sorted position
-    const notes = [
-      mk("s/Charlie.md"),
-      mk("s/Alpha.md"),
-      mk("s/Bravo.md"),
-    ];
+    const notes = [mk("s/Charlie.md"), mk("s/Alpha.md"), mk("s/Bravo.md")];
     const { nodes } = collectNodes(cfg, notes);
     expect(nodes["s/Alpha.md"].collIdx).toBe(0);
     expect(nodes["s/Bravo.md"].collIdx).toBe(1);
@@ -173,7 +270,9 @@ describe("collectNodes — collIdx", () => {
 
   it("collIdx counts position in the sorted source folder, including where-filtered notes", () => {
     // Alpha sorts first but is dropped by where; Bravo keeps collIdx 1 (its sorted position)
-    const cfg: MapCfg = { levels: [{ id: "lv", from: "s", where: { parentId: null } }] };
+    const cfg: MapCfg = {
+      levels: [{ id: "lv", from: "s", where: { parentId: null } }],
+    };
     const notes = [
       mk("s/Bravo.md", {}),
       mk("s/Alpha.md", { parentId: "[[X]]" }),

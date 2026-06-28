@@ -5,9 +5,11 @@ import {
   computeVisible,
   orderAndLayout,
   searchMatch,
+  resolveLayout,
   CARD_W,
   NODE_H,
   COL_GAP,
+  V_GAP,
   TOP,
   type MapCfg,
   type MNode,
@@ -124,7 +126,12 @@ describe("orderAndLayout — orphans", () => {
     ];
     const { nodes, byLevel } = collectNodes(cfg, notes);
     buildEdges(cfg, nodes, byLevel, resolverFor(notes));
-    const vis = computeVisible(nodes, new Set(), { status: new Set(["active"]) }, cfg);
+    const vis = computeVisible(
+      nodes,
+      new Set(),
+      { status: new Set(["active"]) },
+      cfg
+    );
 
     // Drop is filtered out and takes its primary subtree (UnderDrop) with it.
     expect(vis.has("g/Drop.md")).toBe(false);
@@ -154,7 +161,9 @@ describe("orderAndLayout — vertical placement", () => {
 
     // no vertical overlap within the children column
     for (let i = 1; i < kids.length; i++) {
-      expect(kids[i].y!).toBeGreaterThanOrEqual(kids[i - 1].y! + kids[i - 1].h!);
+      expect(kids[i].y!).toBeGreaterThanOrEqual(
+        kids[i - 1].y! + kids[i - 1].h!
+      );
     }
 
     // parent y sits at the midpoint of the children's y-range
@@ -194,7 +203,10 @@ describe("orderAndLayout — horizontal placement and bounds", () => {
       mk("p/c-1.md", { title: "C1", goal: "[[Root]]" }),
       mk("p/c-2.md", { title: "C2", goal: "[[Root]]" }),
     ];
-    const { nodes, contentRight, contentBottom, levelX } = layout(twoLevelCfg, notes);
+    const { nodes, contentRight, contentBottom, levelX } = layout(
+      twoLevelCfg,
+      notes
+    );
     expect(contentRight).toBeGreaterThan(0);
     expect(contentBottom).toBeGreaterThan(0);
     const all = Object.values(nodes) as MNode[];
@@ -205,6 +217,65 @@ describe("orderAndLayout — horizontal placement and bounds", () => {
     }
     // contentRight is the last column's right edge
     expect(contentRight).toBe(levelX[levelX.length - 1] + CARD_W);
+  });
+});
+
+describe("resolveLayout", () => {
+  it("returns the built-in defaults when no layout is configured", () => {
+    expect(resolveLayout(undefined)).toEqual({
+      cardW: CARD_W,
+      nodeH: NODE_H,
+      colGap: COL_GAP,
+      vGap: V_GAP,
+      top: TOP,
+      titleLines: 2,
+    });
+  });
+
+  it("overrides only the keys given, defaulting the rest", () => {
+    expect(resolveLayout({ cardWidth: 200, rowGap: 4 })).toEqual({
+      cardW: 200,
+      nodeH: NODE_H,
+      colGap: COL_GAP,
+      vGap: 4,
+      top: TOP,
+      titleLines: 2,
+    });
+  });
+
+  it("defaults titleLines to 2 and honours an override", () => {
+    expect(resolveLayout(undefined).titleLines).toBe(2);
+    expect(resolveLayout({ titleLines: 3 }).titleLines).toBe(3);
+  });
+});
+
+describe("orderAndLayout — layout config", () => {
+  const notes = [
+    mk("g/G.md", { title: "G" }),
+    mk("p/P.md", { title: "P", goal: "[[G]]" }),
+  ];
+
+  it("sizes cards and column step from cfg.layout", () => {
+    const cfg: MapCfg = {
+      ...twoLevelCfg,
+      layout: { cardWidth: 200, cardHeight: 50, columnGap: 100 },
+    };
+    const { nodes, levelX, contentRight } = layout(cfg, notes);
+    expect(nodes["g/G.md"].w!).toBe(200);
+    expect(nodes["g/G.md"].h!).toBe(50);
+    expect(levelX[1] - levelX[0]).toBe(200 + 100);
+    expect(contentRight).toBe(levelX[levelX.length - 1] + 200);
+  });
+
+  it("uses cfg.layout.top + rowGap for vertical stacking", () => {
+    const cfg: MapCfg = {
+      levels: [{ id: "g", from: "g", card: { title: "title" } }],
+      layout: { top: 10, cardHeight: 40, rowGap: 5 },
+    };
+    const solo = [mk("g/A.md", { title: "A" }), mk("g/B.md", { title: "B" })];
+    const { nodes } = layout(cfg, solo);
+    expect(nodes["g/A.md"].y!).toBe(10); // first card sits at top
+    expect(nodes["g/B.md"].y!).toBe(10 + 40 + 5); // next steps by cardHeight + rowGap
   });
 });
 
@@ -237,7 +308,11 @@ describe("searchMatch", () => {
   });
 
   it("matches a term found in sub or meta, not just title", () => {
-    const n = node({ title: "Goal", sub: "north star kpi", meta: "status: wip · owner: kiko" });
+    const n = node({
+      title: "Goal",
+      sub: "north star kpi",
+      meta: "status: wip · owner: kiko",
+    });
     expect(searchMatch(n, "kpi")).toBe(true); // in sub
     expect(searchMatch(n, "owner")).toBe(true); // in meta
     expect(searchMatch(n, "missing")).toBe(false);
@@ -250,7 +325,7 @@ describe("searchMatch", () => {
     expect(searchMatch(n, "foo")).toBe(true);
   });
 
-  it("matches every node on the empty term (includes(\"\") is always true)", () => {
+  it('matches every node on the empty term (includes("") is always true)', () => {
     expect(searchMatch(node({ title: "anything" }), "")).toBe(true);
     expect(searchMatch(node({ title: "", sub: "", meta: "" }), "")).toBe(true);
   });
