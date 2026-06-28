@@ -59,6 +59,8 @@ export default class NotesMindmapPlugin extends Plugin {
         el.createEl("pre", {
           text: "Markdown Mindmap error:\n" + (e?.message || String(e)),
         });
+        el.createEl("button", { text: "Mindmap help" }).onclick = () =>
+          new HelpModal(this.app).open();
       }
     });
   }
@@ -122,13 +124,6 @@ function renderMindmap(
   // strip, so label-bearing cards stay 24px taller in this mode. Recompute layout per-toggle if it bugs you.
   let titleOnly = false;
 
-  // One initial layout pass gives filterOptions real x/y positions for toolbar order.
-  orderAndLayout(
-    cfg,
-    nodes,
-    byLevel,
-    computeVisible(nodes, collapsed, filters, cfg)
-  );
   const optionsByProp = filterOptions(nodes, cfg);
   const chipByPropValue: Record<string, Record<string, HTMLButtonElement>> = {};
 
@@ -150,6 +145,7 @@ function renderMindmap(
       "title",
       collapsedBar ? "Expand toolbar" : "Collapse toolbar"
     );
+    fit();
   };
   if (cfg.title) toolbar.createSpan({ cls: "mm-title", text: cfg.title });
 
@@ -380,6 +376,13 @@ function renderMindmap(
         (e instanceof Error ? e.message : String(e))
     );
   }
+
+  const helpBtn = toolbar.createEl("button", {
+    cls: "mm-icon",
+    text: "?",
+    attr: { title: "Mindmap help" },
+  });
+  helpBtn.onclick = () => new HelpModal(app).open();
 
   const resetBtn = toolbar.createEl("button", { text: "Reset" });
   resetBtn.onclick = () => {
@@ -649,9 +652,9 @@ function renderMindmap(
           svgEl("title", {}, g).textContent =
             n.title + (n.sub ? "\n" + n.sub : "");
 
-        // bottom strip: progress/category bar first, then label pills last
-        if (hasBar) drawBar(g, n);
+        // bottom strip: label pills, then the progress/category bar as the last row
         if (labelH) drawLabels(g, n);
+        if (hasBar) drawBar(g, n);
 
         // collapse toggle in the top-right corner (clear of the right-edge link connector)
         if (hasKids) {
@@ -690,9 +693,11 @@ function renderMindmap(
     reapply();
   }
 
-  // small value pills along the card's bottom strip; drops any that don't fit on one row
+  // small value pills along the card's bottom strip; drops any that don't fit on one row.
+  // sit above the bar when there is one, so the bar is always the card's last row.
   function drawLabels(g: SVGElement, n: MNode) {
-    const top = n.y! + n.h! - 20,
+    const hasBar = n.progress != null || n.bars.length > 0;
+    const top = n.y! + n.h! - (hasBar ? 53 : 31),
       h = 15,
       size = 9,
       pad = 11;
@@ -734,11 +739,11 @@ function renderMindmap(
     }
   }
 
-  // progress bar (0-100) and/or stacked category bar, pinned to the card's lower strip
+  // progress bar (0-100) and/or stacked category bar, pinned to the card's last row
   function drawBar(g: SVGElement, n: MNode) {
     const x = n.x! + 14,
       w = n.w! - 28,
-      y = n.y! + n.h! - (n.labels.length ? 38 : 14);
+      y = n.y! + n.h! - 23;
     if (n.progress != null) {
       const p = Math.max(0, Math.min(100, n.progress));
       svgEl("rect", { class: "mm-track", x, y, width: w, height: 6, rx: 3 }, g);
@@ -789,9 +794,17 @@ function renderMindmap(
   function fit() {
     const w = svg.clientWidth || wrapEl.clientWidth,
       h = svg.clientHeight || 600;
+    // the sidebar overlays the left of the stage; keep content clear of it
+    const barW = toolbar.classList.contains("mm-bar-collapsed")
+      ? 0
+      : toolbar.offsetWidth + 16;
     view.k =
-      Math.min(w / (contentRight + 40), h / (contentBottom + 40), 1.4) || 1;
-    view.x = 20;
+      Math.min(
+        (w - barW) / (contentRight + 40),
+        h / (contentBottom + 40),
+        1.4
+      ) || 1;
+    view.x = barW + 20;
     view.y = 8;
     apply();
   }
@@ -904,6 +917,87 @@ const promptText = (
   new Promise((resolve) =>
     new PromptModal(app, heading, initial, resolve).open()
   );
+
+// ---- help dialog ---------------------------------------------------------
+// ponytail: hand-maintained cheat sheet. The plugin can't read the repo README at
+// runtime (only main.js/manifest/styles ship to the vault), so this mirrors the key
+// reference; full docs + examples live at the GitHub link below.
+const HELP = `## Markdown Mindmap
+
+A map is one \`\`\`mindmap\`\`\` block of YAML. Folders become columns (**levels**),
+frontmatter links become **edges**. The tree rebuilds from your notes every open.
+
+### Quick start
+~~~yaml
+title: Goals → Projects → Tasks
+levels:
+  - { id: goals,    label: GOALS,    from: planning/goals,    card: { title: title, sub: kpi } }
+  - { id: projects, label: PROJECTS, from: planning/projects, card: { title: title, meta: [status] } }
+  - { id: tasks,    label: TASKS,    from: planning/tasks,    card: { title: title, progress: progress } }
+edges:
+  - { from: goals,    to: projects, via: goal }     # each project note: goal: "[[Goal A]]"
+  - { from: projects, to: tasks,    via: project }  # each task note: project: "[[Project 1]]"
+filter: [status]
+~~~
+
+### Top-level keys
+- **title** — heading in the toolbar
+- **height** — component height px (default 900)
+- **levels** — columns, left to right (**required**)
+- **edges** — parent → child links between levels
+- **filter** — properties shown as chip filters
+- **filterLabels** — rename a filter group's heading
+- **layout** — override card/column sizing
+- **properties: true** — show all frontmatter in the note dialog
+- **views** — saved filter selections (managed by the toolbar)
+
+### Each level
+- **id** (required) — referenced by edges
+- **from** (required) — folder to read notes from (recursive)
+- **label** — column header
+- **color** — column/border hex colour
+- **where** — keep only notes matching, e.g. \`{ horizon: now }\`
+- **card** — which fields render on the card
+
+### Each card
+- **title** — bold title (falls back to file name)
+- **sub** — subtitle line
+- **meta** — list of fields, muted \`·\`-joined line
+- **progress** — a 0–100 field as a progress bar
+- **bars** — a list field as a stacked count-by-category bar
+- **labels** — list of fields shown as coloured pills
+
+### Each edge
+- **from** / **to** — level ids
+- **via** — frontmatter field holding the link (on the **to** notes by default)
+- **reverse: true** — field lives on the **from** notes and points down
+- **secondary: true** — draw dashed, keep out of the layout spine
+
+### Interactions
+Search to spotlight · filter chips · save views · hover for lineage · click a card
+for its dialog · **+ / −** collapse a subtree · **⛶** fullscreen · **Reset** ·
+drag to pan, scroll to zoom.
+
+[Full documentation on GitHub →](https://github.com/kikocastro/markdown-mindmap#readme)
+`;
+
+class HelpModal extends Modal {
+  private comp = new Component();
+  override async onOpen() {
+    this.comp.load();
+    const { contentEl, modalEl } = this;
+    if (document.fullscreenElement)
+      document.fullscreenElement.appendChild(this.containerEl);
+    modalEl.addClass("mm-modal");
+    contentEl.empty();
+    const body = contentEl.createDiv({ cls: "mm-note markdown-rendered" });
+    await MarkdownRenderer.render(this.app, HELP, body, "", this.comp);
+  }
+  override onClose() {
+    this.comp.unload();
+    this.contentEl.empty();
+  }
+}
 
 // ---- note dialog ---------------------------------------------------------
 

@@ -178,6 +178,30 @@ export const wrap = (
   return out.slice(0, max);
 };
 
+// card height that hugs its content. Mirrors the vertical metrics both adapters
+// draw with (pad 14/14, title 16, sub 15, meta 14, bar 20, label strip 24).
+// ponytail: these numbers are duplicated as draw constants in the adapters; if you
+// retune card spacing, change both. cardHeight config acts as a minimum floor.
+export const MIN_H = 44;
+export const cardContentHeight = (
+  n: MNode,
+  cardW: number,
+  titleLines: number
+): number => {
+  const padR = n.children.size > 0 ? 42 : 16;
+  const tLines = wrap(n.title, cardW - 14 - padR, 12, titleLines).length || 1;
+  const hasBar = n.progress != null || n.bars.length > 0;
+  return (
+    14 +
+    tLines * 16 +
+    (n.sub ? 15 : 0) +
+    (n.meta ? 14 : 0) +
+    (hasBar ? 20 : 0) +
+    (n.labels.length ? 24 : 0) +
+    14
+  );
+};
+
 // dotted access so `via`/card fields can reach nested frontmatter (e.g. customFields.serves)
 export const getPath = (fm: Record<string, any>, key?: string): any => {
   if (!fm || !key) return undefined;
@@ -515,7 +539,14 @@ export function orderAndLayout(
   contentRight: number;
 } {
   const visN = (id: string) => vis.has(id);
-  const { cardW, nodeH, colGap, vGap, top: TOP } = resolveLayout(cfg.layout);
+  const {
+    cardW,
+    colGap,
+    vGap,
+    top: TOP,
+    titleLines,
+  } = resolveLayout(cfg.layout);
+  const floor = cfg.layout?.cardHeight ?? MIN_H;
   const levelX = cfg.levels.map((_, i) => 40 + i * (cardW + colGap));
 
   const order: string[][] = cfg.levels.map(() => []);
@@ -549,9 +580,8 @@ export function orderAndLayout(
       const kids = primKids(nodes, id)
         .filter((c) => visN(c) && nodes[c].levelIdx === li + 1)
         .map((c) => nodes[c]);
-      const labelStripH = n.labels.length ? 24 : 0;
       n.w = cardW;
-      n.h = nodeH + labelStripH;
+      n.h = Math.max(floor, cardContentHeight(n, cardW, titleLines));
       n.x = levelX[li];
       if (kids.length) {
         const top = Math.min(...kids.map((k) => k.y!)),
@@ -570,23 +600,12 @@ export function filterOptions(
   nodes: Record<string, MNode>,
   cfg: MapCfg
 ): Record<string, string[]> {
-  const ordered = Object.values(nodes).sort(
-    (a, b) =>
-      a.levelIdx - b.levelIdx ||
-      (a.y ?? Number.POSITIVE_INFINITY) - (b.y ?? Number.POSITIVE_INFINITY) ||
-      a.collIdx - b.collIdx ||
-      a.id.localeCompare(b.id)
-  );
-
+  const all = Object.values(nodes);
   const options: Record<string, string[]> = {};
   (cfg.filter || []).forEach((prop) => {
     const seen = new Set<string>();
-    ordered.forEach((n) => {
-      fieldArr(n.fm, prop).forEach((value) => {
-        if (!seen.has(value)) seen.add(value);
-      });
-    });
-    options[prop] = [...seen];
+    all.forEach((n) => fieldArr(n.fm, prop).forEach((v) => seen.add(v)));
+    options[prop] = [...seen].sort((a, b) => a.localeCompare(b));
   });
   return options;
 }

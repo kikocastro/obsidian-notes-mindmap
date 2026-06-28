@@ -170,7 +170,7 @@ describe("orderAndLayout — vertical placement", () => {
     // parent y sits at the midpoint of the children's y-range
     const top = Math.min(...kids.map((k) => k.y!));
     const bot = Math.max(...kids.map((k) => k.y! + k.h!));
-    const expectedCenter = (top + bot) / 2 - NODE_H / 2;
+    const expectedCenter = (top + bot) / 2 - root.h! / 2;
     expect(root.y!).toBeCloseTo(expectedCenter, 6);
     // parent's own center aligns with the children block's center
     expect(root.y! + root.h! / 2).toBeCloseTo((top + bot) / 2, 6);
@@ -263,6 +263,7 @@ describe("orderAndLayout — layout config", () => {
     };
     const { nodes, levelX, contentRight } = layout(cfg, notes);
     expect(nodes["g/G.md"].w!).toBe(200);
+    // short title (44) is under the cardHeight floor, so the floor wins
     expect(nodes["g/G.md"].h!).toBe(50);
     expect(levelX[1] - levelX[0]).toBe(200 + 100);
     expect(contentRight).toBe(levelX[levelX.length - 1] + 200);
@@ -271,12 +272,13 @@ describe("orderAndLayout — layout config", () => {
   it("uses cfg.layout.top + rowGap for vertical stacking", () => {
     const cfg: MapCfg = {
       levels: [{ id: "g", from: "g", card: { title: "title" } }],
-      layout: { top: 10, cardHeight: 40, rowGap: 5 },
+      layout: { top: 10, cardHeight: 60, rowGap: 5 },
     };
     const solo = [mk("g/A.md", { title: "A" }), mk("g/B.md", { title: "B" })];
     const { nodes } = layout(cfg, solo);
     expect(nodes["g/A.md"].y!).toBe(10); // first card sits at top
-    expect(nodes["g/B.md"].y!).toBe(10 + 40 + 5); // next steps by cardHeight + rowGap
+    // cardHeight is a minimum floor; short cards take it, then step by + rowGap
+    expect(nodes["g/B.md"].y!).toBe(10 + 60 + 5);
   });
 
   it("adds vertical space for bottom label pills", () => {
@@ -294,12 +296,39 @@ describe("orderAndLayout — layout config", () => {
       mk("g/Labeled.md", { title: "Labeled", kind: "driver" }),
     ]);
 
-    expect(nodes["g/Labeled.md"].h!).toBe(74);
+    // 1 title line (16) + label strip (24) + 28 padding = 68, grown above the floor
+    expect(nodes["g/Labeled.md"].h!).toBe(68);
+  });
+
+  it("hugs content: a short titled card is no taller than its content", () => {
+    const cfg: MapCfg = {
+      levels: [
+        { id: "g", from: "g", card: { title: "title", labels: ["kind"] } },
+      ],
+    };
+    const { nodes } = layout(cfg, [mk("g/S.md", { title: "Hi", kind: "x" })]);
+    // 1 title line (16) + label strip (24) + 28 padding = 68, well under the old 80 box
+    expect(nodes["g/S.md"].h!).toBe(68);
+  });
+
+  it("grows the card when the title wraps to more lines", () => {
+    const cfg: MapCfg = {
+      levels: [{ id: "g", from: "g", card: { title: "title" } }],
+      layout: { titleLines: 3 },
+    };
+    const a = layout(cfg, [mk("g/A.md", { title: "Short" })]).nodes["g/A.md"];
+    const b = layout(cfg, [
+      mk("g/B.md", {
+        title:
+          "This is a much longer title that will certainly wrap across several lines",
+      }),
+    ]).nodes["g/B.md"];
+    expect(b.h!).toBeGreaterThan(a.h!);
   });
 });
 
 describe("filterOptions", () => {
-  it("orders each property's values by first node layout position, not alphabetically", () => {
+  it("orders each property's values alphabetically, regardless of layout position", () => {
     const cfg: MapCfg = {
       levels: [
         { id: "outcomes", from: "o", card: { title: "title" } },
@@ -327,13 +356,13 @@ describe("filterOptions", () => {
     orderAndLayout(cfg, nodes, byLevel, vis);
 
     expect(filterOptions(nodes, cfg).entity).toEqual([
-      "north star",
-      "driver",
       "adoption",
+      "driver",
+      "north star",
     ]);
   });
 
-  it("uses the earliest laid-out node carrying a repeated value", () => {
+  it("deduplicates repeated values and sorts alphabetically", () => {
     const cfg: MapCfg = {
       levels: [
         { id: "goals", from: "g", card: { title: "title" } },
@@ -353,7 +382,7 @@ describe("filterOptions", () => {
     const vis = computeVisible(nodes, new Set(), {}, cfg);
     orderAndLayout(cfg, nodes, byLevel, vis);
 
-    expect(filterOptions(nodes, cfg).status).toEqual(["zeta", "beta", "alpha"]);
+    expect(filterOptions(nodes, cfg).status).toEqual(["alpha", "beta", "zeta"]);
   });
 });
 

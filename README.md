@@ -9,7 +9,7 @@ It ships as **two adapters over one shared core** (`src/graph.ts`): the **Obsidi
 ## Features
 
 - **Live from frontmatter.** Folders become columns; frontmatter links become edges. Add or remove a note and the map updates.
-- **Per-level card design.** Pick which fields show as title / subtitle / meta per level.
+- **Per-level card design.** Pick which fields show as title / subtitle / meta per level; cards auto-size to their content.
 - **Edges from links.** A `[[wikilink]]`, plain title, basename, list, or nested field (`customFields.serves`) on either end of an edge.
 - **Secondary (dashed) links.** Mark cross-links that should draw dashed and stay out of the layout spine (e.g. "also relates to").
 - **Bar charts & progress bars.** Render a 0–100 field as a progress bar, or a list field as a stacked count-by-category bar.
@@ -92,14 +92,14 @@ filter: [status]
 
 **`layout`** (all optional, defaults shown)
 
-| Key          | Default | Meaning                                                                                    |
-| ------------ | ------- | ------------------------------------------------------------------------------------------ |
-| `cardWidth`  | `270`   | Card width in px.                                                                          |
-| `cardHeight` | `80`    | Card height in px.                                                                         |
-| `columnGap`  | `150`   | Horizontal gap between columns.                                                            |
-| `rowGap`     | `12`    | Vertical gap between stacked cards.                                                        |
-| `top`        | `64`    | Top margin before the first card.                                                          |
-| `titleLines` | `2`     | Title lines shown before truncating. Set `3` for taller cards. Bump `cardHeight` to match. |
+| Key          | Default | Meaning                                                                                                                          |
+| ------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `cardWidth`  | `270`   | Card width in px.                                                                                                                |
+| `cardHeight` | `44`    | **Minimum** card height in px. Cards auto-size to their content (title lines, sub, meta, bar, labels); this only sets the floor. |
+| `columnGap`  | `150`   | Horizontal gap between columns.                                                                                                  |
+| `rowGap`     | `12`    | Vertical gap between stacked cards.                                                                                              |
+| `top`        | `64`    | Top margin before the first card.                                                                                                |
+| `titleLines` | `2`     | Title lines shown before truncating. Set `3` to allow longer titles; cards grow to fit automatically.                            |
 
 **Each level**
 
@@ -172,7 +172,7 @@ filter: [horizon, kind, status]
 ## Interactions
 
 - **Search** box — spotlight cards matching title / sub / meta, dim the rest.
-- **Filter chips** — multi-select per property (OR within, AND across), with options ordered by their first visible map position.
+- **Filter chips** — multi-select per property (OR within, AND across), with options sorted alphabetically.
 - **Saved views** — save the current filter combination, apply it from the dropdown, edit it, or delete it. Saved views are written to the block's `views:` key.
 - **Hover** a card — highlight its full up/down lineage.
 - **Click** a card — open a dialog: title + file name, level badge, progress/demand breakdown, its **linked parents, siblings, and children** (click one to jump the dialog there), optional frontmatter properties, the rendered note, "Open note", and "Focus".
