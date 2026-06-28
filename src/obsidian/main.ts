@@ -1,21 +1,26 @@
 import {
   App,
   Component,
+  MarkdownPostProcessorContext,
   MarkdownRenderer,
   Modal,
   Plugin,
   TFile,
   parseYaml,
+  stringifyYaml,
 } from "obsidian";
 import {
+  AUTO_COLORS,
   MapCfg,
   MNode,
   NoteLike,
   Resolver,
+  SavedViewCfg,
   collectNodes,
   buildEdges,
   isSecondary,
-  fieldArr,
+  filterOptions,
+  focusVisible,
   resolveLayout,
   computeVisible,
   orderAndLayout,
@@ -25,7 +30,7 @@ import {
 } from "../graph";
 
 // ============================================================================
-// Notes Mindmap — render a leveled left->right tree from note frontmatter links.
+// Markdown Mindmap — render a leveled left->right tree from note frontmatter links.
 // One ```mindmap code block = one map. Config is inline YAML (see README).
 // Pure logic lives in src/graph.ts; this file owns the SVG/DOM and the Modal.
 // ============================================================================
@@ -44,12 +49,12 @@ interface LinkRow {
 
 export default class NotesMindmapPlugin extends Plugin {
   override async onload() {
-    this.registerMarkdownCodeBlockProcessor("mindmap", (source, el) => {
+    this.registerMarkdownCodeBlockProcessor("mindmap", (source, el, ctx) => {
       try {
-        renderMindmap(this.app, this, source, el);
+        renderMindmap(this.app, this, source, el, ctx);
       } catch (e: any) {
         el.createEl("pre", {
-          text: "Notes Mindmap error:\n" + (e?.message || String(e)),
+          text: "Markdown Mindmap error:\n" + (e?.message || String(e)),
         });
       }
     });
@@ -75,7 +80,8 @@ function renderMindmap(
   app: App,
   plugin: Plugin,
   source: string,
-  host: HTMLElement
+  host: HTMLElement,
+  ctx: MarkdownPostProcessorContext
 ) {
   const cfg = parseYaml(source) as MapCfg;
   validateConfig(cfg);
@@ -102,9 +108,22 @@ function renderMindmap(
   const collapsed = new Set<string>();
   const filters: Record<string, Set<string>> = {}; // prop -> selected values (empty = all)
   (cfg.filter || []).forEach((p) => (filters[p] = new Set()));
+  let savedViews: SavedViewCfg[] = [...(cfg.views || [])];
+  let selectedView = "";
   let searchTerm = "";
   const view = { x: 20, y: 8, k: 1 };
   let selected: string | null = null;
+  let focused: string | null = null;
+
+  // One initial layout pass gives filterOptions real x/y positions for toolbar order.
+  orderAndLayout(
+    cfg,
+    nodes,
+    byLevel,
+    computeVisible(nodes, collapsed, filters, cfg)
+  );
+  const optionsByProp = filterOptions(nodes, cfg);
+  const chipByPropValue: Record<string, Record<string, HTMLButtonElement>> = {};
 
   // ---- DOM scaffold ----
   host.empty();
@@ -122,17 +141,20 @@ function renderMindmap(
     searchTerm = search.value.trim().toLowerCase();
     reapply();
   };
+  let viewSelect: HTMLSelectElement | null = null;
+  let editViewBtn: HTMLButtonElement | null = null;
+  let deleteViewBtn: HTMLButtonElement | null = null;
 
   // multiselect filters: one toggle-chip group per property (OR within a group, AND across groups)
   (cfg.filter || []).forEach((prop) => {
-    const values = Array.from(
-      new Set(Object.values(nodes).flatMap((n) => fieldArr(n.fm, prop)))
-    ).sort();
+    const values = optionsByProp[prop] || [];
     if (!values.length) return;
+    chipByPropValue[prop] = {};
     const grp = toolbar.createDiv({ cls: "mm-fltgroup" });
     grp.createSpan({ cls: "mm-fltlabel", text: prop });
     values.forEach((v) => {
       const chip = grp.createEl("button", { cls: "mm-chip", text: v });
+      chipByPropValue[prop][v] = chip;
       chip.onclick = () => {
         if (filters[prop].has(v)) {
           filters[prop].delete(v);
@@ -141,11 +163,92 @@ function renderMindmap(
           filters[prop].add(v);
           chip.addClass("on");
         }
+        selectedView = "";
+        syncViewControls();
         draw();
         fit();
       };
     });
   });
+
+  if ((cfg.filter || []).length) {
+    const views = toolbar.createDiv({ cls: "mm-viewgroup" });
+    viewSelect = views.createEl("select", { cls: "mm-viewselect" });
+    viewSelect.onchange = () => {
+      selectedView = viewSelect?.value || "";
+      const saved = savedViews.find((v) => v.name === selectedView);
+      if (saved) applyFilterSnapshot(saved.filters || {});
+      else syncViewControls();
+    };
+    const saveView = views.createEl("button", { text: "Save current as…" });
+    saveView.onclick = () => {
+      const name = window.prompt("Save current filters as view:");
+      if (!name?.trim()) return;
+      const cleanName = name.trim();
+      const existing = savedViews.findIndex((v) => v.name === cleanName);
+      if (
+        existing >= 0 &&
+        !window.confirm(`Replace the saved view "${cleanName}"?`)
+      )
+        return;
+      const nextView = { name: cleanName, filters: currentFilterSnapshot() };
+      const nextViews =
+        existing >= 0
+          ? savedViews.map((v, i) => (i === existing ? nextView : v))
+          : [...savedViews, nextView];
+      persistViews(nextViews)
+        .then(() => {
+          selectedView = cleanName;
+          syncViewControls();
+        })
+        .catch(reportViewError);
+    };
+    editViewBtn = views.createEl("button", { text: "Edit" });
+    editViewBtn.onclick = () => {
+      const current = savedViews.find((v) => v.name === selectedView);
+      if (!current) return;
+      const name = window.prompt(
+        "Rename this view and update it to current filters:",
+        current.name
+      );
+      if (!name?.trim()) return;
+      const cleanName = name.trim();
+      const duplicate = savedViews.some(
+        (v) => v.name === cleanName && v.name !== current.name
+      );
+      if (duplicate) {
+        window.alert(`A saved view named "${cleanName}" already exists.`);
+        return;
+      }
+      const nextViews = savedViews.map((v) =>
+        v.name === current.name
+          ? { name: cleanName, filters: currentFilterSnapshot() }
+          : v
+      );
+      persistViews(nextViews)
+        .then(() => {
+          selectedView = cleanName;
+          syncViewControls();
+        })
+        .catch(reportViewError);
+    };
+    deleteViewBtn = views.createEl("button", { text: "Delete" });
+    deleteViewBtn.onclick = () => {
+      const current = savedViews.find((v) => v.name === selectedView);
+      if (
+        !current ||
+        !window.confirm(`Delete the saved view "${current.name}"?`)
+      )
+        return;
+      persistViews(savedViews.filter((v) => v.name !== current.name))
+        .then(() => {
+          selectedView = "";
+          syncViewControls();
+        })
+        .catch(reportViewError);
+    };
+    syncViewControls();
+  }
 
   toolbar.createSpan({ cls: "mm-spacer" });
   const fsBtn = toolbar.createEl("button", {
@@ -161,16 +264,102 @@ function renderMindmap(
     requestAnimationFrame(fit)
   );
 
+  function currentFilterSnapshot(): Record<string, string[]> {
+    const snapshot: Record<string, string[]> = {};
+    (cfg.filter || []).forEach((prop) => {
+      const values = (optionsByProp[prop] || []).filter((v) =>
+        filters[prop]?.has(v)
+      );
+      if (values.length) snapshot[prop] = values;
+    });
+    return snapshot;
+  }
+
+  function updateFilterChips() {
+    Object.entries(chipByPropValue).forEach(([prop, chips]) => {
+      Object.entries(chips).forEach(([value, chip]) => {
+        chip.toggleClass("on", filters[prop]?.has(value) || false);
+      });
+    });
+  }
+
+  function applyFilterSnapshot(snapshot: Record<string, string[]>) {
+    (cfg.filter || []).forEach((prop) => filters[prop].clear());
+    Object.entries(snapshot).forEach(([prop, values]) => {
+      if (!filters[prop]) return;
+      values.forEach((value) => filters[prop].add(value));
+    });
+    updateFilterChips();
+    syncViewControls();
+    draw();
+    fit();
+  }
+
+  function syncViewControls() {
+    if (!viewSelect) return;
+    viewSelect.empty();
+    const placeholder = viewSelect.createEl("option", { text: "Views" });
+    placeholder.value = "";
+    savedViews.forEach((viewCfg) => {
+      const opt = viewSelect!.createEl("option", { text: viewCfg.name });
+      opt.value = viewCfg.name;
+    });
+    viewSelect.value = selectedView;
+    const hasSelection = savedViews.some((v) => v.name === selectedView);
+    if (editViewBtn) editViewBtn.disabled = !hasSelection;
+    if (deleteViewBtn) deleteViewBtn.disabled = !hasSelection;
+  }
+
+  function mindmapBlockRange(lines: string[]) {
+    const section = ctx.getSectionInfo(host);
+    if (!section) return null;
+    let start = section.lineStart;
+    while (start > 0 && !/^```mindmap\b/.test(lines[start])) start--;
+    if (!/^```mindmap\b/.test(lines[start])) return null;
+    let end = start + 1;
+    while (end < lines.length && !/^```\s*$/.test(lines[end])) end++;
+    return end < lines.length ? { start, end } : null;
+  }
+
+  async function persistViews(nextViews: SavedViewCfg[]) {
+    const file = app.vault.getAbstractFileByPath(ctx.sourcePath);
+    if (!(file instanceof TFile))
+      throw new Error("Could not find the note that owns this mindmap block.");
+    const raw = await app.vault.read(file);
+    const eol = raw.includes("\r\n") ? "\r\n" : "\n";
+    const lines = raw.split(/\r?\n/);
+    const range = mindmapBlockRange(lines);
+    if (!range)
+      throw new Error("Could not locate the source ```mindmap code block.");
+
+    const nextCfg: MapCfg = { ...cfg };
+    if (nextViews.length) nextCfg.views = nextViews;
+    else delete nextCfg.views;
+    const nextBlock = ["```mindmap", stringifyYaml(nextCfg).trimEnd(), "```"];
+    lines.splice(range.start, range.end - range.start + 1, ...nextBlock);
+    await app.vault.modify(file, lines.join(eol));
+    savedViews = nextViews;
+    cfg.views = nextViews.length ? nextViews : undefined;
+  }
+
+  function reportViewError(e: unknown) {
+    window.alert(
+      "Could not update mindmap views:\n" +
+        (e instanceof Error ? e.message : String(e))
+    );
+  }
+
   const resetBtn = toolbar.createEl("button", { text: "Reset" });
   resetBtn.onclick = () => {
     collapsed.clear();
     selected = null;
+    focused = null;
+    selectedView = "";
     searchTerm = "";
     search.value = "";
     (cfg.filter || []).forEach((p) => filters[p].clear());
-    toolbar
-      .querySelectorAll(".mm-chip.on")
-      .forEach((c) => (c as HTMLElement).removeClass("on"));
+    updateFilterChips();
+    syncViewControls();
     draw();
     fit();
   };
@@ -261,7 +450,20 @@ function renderMindmap(
     selected = id;
     reapply();
     const n = nodes[id];
-    new NoteModal(app, n, linksFor(n), fileByPath[n.path], openNode).open();
+    new NoteModal(
+      app,
+      n,
+      linksFor(n),
+      fileByPath[n.path],
+      openNode,
+      (focusId) => {
+        focused = focusId;
+        selected = null;
+        draw();
+        fit();
+      },
+      cfg.properties === true
+    ).open();
   }
 
   // ---- layout + draw (re-runnable) ----
@@ -274,7 +476,11 @@ function renderMindmap(
     upAdj = {};
     dnAdj = {};
 
-    const vis = computeVisible(nodes, collapsed, filters, cfg);
+    const baseVis = computeVisible(nodes, collapsed, filters, cfg);
+    const focusVis = focusVisible(nodes, focused);
+    const vis = focused
+      ? new Set([...baseVis].filter((id) => focusVis.has(id)))
+      : baseVis;
     const visN = (id: string) => vis.has(id);
     const {
       order,
@@ -347,12 +553,12 @@ function renderMindmap(
           g
         );
 
-        // top strip: small value pills (card.labels), e.g. kind / horizon / stage
-        const labelH = n.labels.length ? 20 : 0;
-        if (labelH) drawLabels(g, n, hasKids);
-
-        // text block: top-aligned under a label strip or above a bar strip, else vertically centred
+        // text block: padded from top/bottom, with bars/labels reserved at the bottom
         const padR = hasKids ? 42 : 16;
+        const labelH = n.labels.length ? 24 : 0;
+        const barH = hasBar ? 20 : 0;
+        const textPadTop = 14;
+        const textPadBottom = 14;
         const lines: { t: string; cls: string; size: number; lh: number }[] =
           [];
         wrap(n.title, n.w! - 14 - padR, 12, titleLines).forEach((t) =>
@@ -369,10 +575,13 @@ function renderMindmap(
           lines.push({ t: n.meta, cls: "mm-meta", size: 9.5, lh: 14 });
         const totalH = lines.reduce((s, b) => s + b.lh, 0);
         const firstSize = lines[0]?.size || 12;
+        const textTop = n.y! + textPadTop;
+        const textBottom = n.y! + n.h! - textPadBottom - barH - labelH;
+        const freeH = Math.max(totalH, textBottom - textTop);
         let ty =
-          labelH || hasBar
-            ? n.y! + labelH + firstSize + 2 // top-align in the free strip
-            : n.y! + (n.h! - totalH) / 2 + firstSize; // vertically centre
+          hasBar || labelH
+            ? textTop + firstSize
+            : textTop + (freeH - totalH) / 2 + firstSize;
         lines.forEach((b) => {
           svgEl(
             "text",
@@ -382,8 +591,9 @@ function renderMindmap(
           ty += b.lh;
         });
 
-        // bottom strip: progress bar and/or category bar chart
+        // bottom strip: progress/category bar first, then label pills last
         if (hasBar) drawBar(g, n);
+        if (labelH) drawLabels(g, n);
 
         // collapse toggle in the top-right corner (clear of the right-edge link connector)
         if (hasKids) {
@@ -422,26 +632,44 @@ function renderMindmap(
     reapply();
   }
 
-  // small value pills along the card's top strip; drops any that don't fit on one row
-  function drawLabels(g: SVGElement, n: MNode, hasKids: boolean) {
-    const top = n.y! + 7,
+  // small value pills along the card's bottom strip; drops any that don't fit on one row
+  function drawLabels(g: SVGElement, n: MNode) {
+    const top = n.y! + n.h! - 20,
       h = 15,
       size = 9,
       pad = 7;
-    const maxX = n.x! + n.w! - (hasKids ? 30 : 12); // clear of the collapse toggle
+    const maxX = n.x! + n.w! - 12;
     let bx = n.x! + 12;
-    for (const t of n.labels) {
+    for (let i = 0; i < n.labels.length; i++) {
+      const t = n.labels[i];
       // ponytail: width estimated from char count — SVG has no cheap text metrics, fine for short labels
       const w = Math.ceil(t.length * size * 0.62) + pad * 2;
       if (bx + w > maxX) break;
+      const color = n.labelColors[i] || AUTO_COLORS[i % AUTO_COLORS.length];
       svgEl(
         "rect",
-        { class: "mm-label", x: bx, y: top, width: w, height: h, rx: 7 },
+        {
+          class: "mm-label",
+          x: bx,
+          y: top,
+          width: w,
+          height: h,
+          rx: 7,
+          fill: color,
+          "fill-opacity": 0.14,
+          stroke: color,
+        },
         g
       );
       svgEl(
         "text",
-        { class: "mm-label-t", x: bx + w / 2, y: top + 11, "font-size": size },
+        {
+          class: "mm-label-t",
+          x: bx + w / 2,
+          y: top + 11,
+          "font-size": size,
+          fill: color,
+        },
         g
       ).textContent = t;
       bx += w + 5;
@@ -452,7 +680,7 @@ function renderMindmap(
   function drawBar(g: SVGElement, n: MNode) {
     const x = n.x! + 14,
       w = n.w! - 28,
-      y = n.y! + n.h! - 14;
+      y = n.y! + n.h! - (n.labels.length ? 38 : 14);
     if (n.progress != null) {
       const p = Math.max(0, Math.min(100, n.progress));
       svgEl("rect", { class: "mm-track", x, y, width: w, height: 6, rx: 3 }, g);
@@ -544,8 +772,13 @@ function renderMindmap(
     { passive: false }
   );
   stage.addEventListener("click", () => {
+    const hadFocus = focused != null;
+    focused = null;
     selected = null;
-    reapply();
+    if (hadFocus) {
+      draw();
+      fit();
+    } else reapply();
   });
 
   draw();
@@ -562,7 +795,9 @@ class NoteModal extends Modal {
     private node: MNode,
     private links: LinkRow[],
     private file: TFile,
-    private nav: (id: string) => void
+    private nav: (id: string) => void,
+    private focus: (id: string) => void,
+    private showProperties: boolean
   ) {
     super(app);
   }
@@ -605,7 +840,8 @@ class NoteModal extends Modal {
       });
     }
 
-    const open = head.createEl("button", {
+    const actions = head.createDiv({ cls: "mm-note-actions" });
+    const open = actions.createEl("button", {
       cls: "mm-note-open",
       text: "Open note ↗",
     });
@@ -613,9 +849,18 @@ class NoteModal extends Modal {
       this.app.workspace.getLeaf("tab").openFile(this.file);
       this.close();
     };
+    const focus = actions.createEl("button", {
+      cls: "mm-note-focus",
+      text: "Focus",
+    });
+    focus.onclick = () => {
+      this.focus(n.id);
+      this.close();
+    };
 
     // linked nodes: parents and children, click to jump the dialog to that note
     this.renderLinks(contentEl);
+    if (this.showProperties) this.renderProperties(contentEl);
 
     const body = contentEl.createDiv({ cls: "mm-note markdown-rendered" });
     const content = await this.app.vault.cachedRead(this.file);
@@ -626,6 +871,34 @@ class NoteModal extends Modal {
       this.file.path,
       this.comp
     );
+  }
+
+  private renderProperties(contentEl: HTMLElement) {
+    const entries = Object.entries(this.node.fm || {});
+    if (!entries.length) return;
+    const wrapEl = contentEl.createDiv({ cls: "mm-note-props" });
+    wrapEl.createDiv({ cls: "mm-note-props-title", text: "Properties" });
+    const table = wrapEl.createEl("table");
+    const tbody = table.createEl("tbody");
+    entries.forEach(([key, value]) => {
+      const row = tbody.createEl("tr");
+      row.createEl("th", { text: key });
+      row.createEl("td", { text: this.formatPropertyValue(value) });
+    });
+  }
+
+  private formatPropertyValue(value: unknown): string {
+    if (Array.isArray(value))
+      return value.map((v) => this.formatPropertyValue(v)).join(", ");
+    if (value && typeof value === "object") {
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    }
+    if (value == null || value === "") return "—";
+    return String(value);
   }
 
   private renderLinks(contentEl: HTMLElement) {

@@ -1,5 +1,5 @@
 // ============================================================================
-// Notes Mindmap — pure logic, Obsidian-free.
+// Markdown Mindmap — pure logic, Obsidian-free.
 // Everything here operates on plain data (NoteLike + a link Resolver) so it can
 // be unit-tested without an Obsidian runtime. main.ts owns the DOM/SVG/Modal and
 // just feeds these functions and draws what they return. Keep this side-effect free.
@@ -89,6 +89,10 @@ export interface EdgeCfg {
   reverse?: boolean;
   secondary?: boolean;
 }
+export interface SavedViewCfg {
+  name: string;
+  filters?: Record<string, string[]>;
+}
 export interface MapCfg {
   title?: string;
   height?: number;
@@ -96,6 +100,8 @@ export interface MapCfg {
   edges?: EdgeCfg[];
   filter?: string[];
   layout?: LayoutCfg;
+  properties?: boolean;
+  views?: SavedViewCfg[];
 }
 
 // the minimal note shape the pure logic needs (a TFile-free stand-in)
@@ -119,6 +125,7 @@ export interface MNode {
   sub: string;
   meta: string;
   labels: string[]; // small pill values rendered on the card (card.labels)
+  labelColors: string[]; // stable color per configured label field index
   color: string;
   levelLabel: string;
   progress: number | null; // 0-100, or null
@@ -273,6 +280,12 @@ export function collectNodes(
       if (!matchesWhere(fm, lvl.where)) return; // per-level frontmatter filter (e.g. {parentId: null})
       const card = lvl.card || {};
       const bar = normalizeBars(card.bars);
+      const labelEntries = (card.labels || [])
+        .map((k, i) => ({
+          text: fieldStr(fm, k),
+          color: AUTO_COLORS[i % AUTO_COLORS.length],
+        }))
+        .filter((l) => l.text);
       const n: MNode = {
         id: file.path,
         levelIdx: li,
@@ -288,7 +301,8 @@ export function collectNodes(
           .map((k) => fieldStr(fm, k))
           .filter(Boolean)
           .join("  ·  "),
-        labels: (card.labels || []).map((k) => fieldStr(fm, k)).filter(Boolean),
+        labels: labelEntries.map((l) => l.text),
+        labelColors: labelEntries.map((l) => l.color),
         progress: num(getPath(fm, card.progress)),
         bars: bar
           ? countByCat(fm, bar.field, bar.category).map(
@@ -515,15 +529,16 @@ export function orderAndLayout(
       const kids = primKids(nodes, id)
         .filter((c) => visN(c) && nodes[c].levelIdx === li + 1)
         .map((c) => nodes[c]);
+      const labelStripH = n.labels.length ? 24 : 0;
       n.w = cardW;
-      n.h = nodeH;
+      n.h = nodeH + labelStripH;
       n.x = levelX[li];
       if (kids.length) {
         const top = Math.min(...kids.map((k) => k.y!)),
           bot = Math.max(...kids.map((k) => k.y! + k.h!));
-        n.y = Math.max(cursor[li], (top + bot) / 2 - nodeH / 2);
+        n.y = Math.max(cursor[li], (top + bot) / 2 - n.h / 2);
       } else n.y = cursor[li];
-      cursor[li] = n.y + nodeH + vGap;
+      cursor[li] = n.y + n.h + vGap;
     }
   }
   const contentBottom = Math.max(TOP, ...cfg.levels.map((_, li) => cursor[li]));

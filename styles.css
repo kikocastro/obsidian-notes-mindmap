@@ -1,4 +1,4 @@
-/* Notes Mindmap — container, toolbar, nodes, note modal. Uses Obsidian theme vars where it can. */
+/* Markdown Mindmap — container, toolbar, nodes, note modal. Uses Obsidian theme vars where it can. */
 
 .mm-wrap {
   position: relative;
@@ -76,6 +76,21 @@
   background: var(--interactive-accent);
   color: var(--text-on-accent);
   border-color: var(--interactive-accent);
+}
+.mm-viewgroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mm-viewselect {
+  min-width: 112px;
+  max-width: 180px;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
 }
 
 .mm-toolbar button {
@@ -170,14 +185,11 @@
   fill: var(--text-faint);
   font-size: 9.5px;
 }
-/* node value pills (card.labels): neutral chips along the top strip */
+/* node value pills (card.labels): colored chips along the bottom strip */
 .mm-label {
-  fill: var(--background-modifier-hover);
-  stroke: var(--background-modifier-border);
   stroke-width: 1;
 }
 .mm-label-t {
-  fill: var(--text-muted);
   font-weight: 600;
   text-anchor: middle;
 }
@@ -218,6 +230,7 @@
 /* note modal */
 .modal.mm-modal {
   width: min(760px, 92vw);
+  transform-origin: center;
 }
 .mm-note-head {
   border-left: 3px solid var(--mm-accent, var(--interactive-accent));
@@ -273,8 +286,45 @@
   border: 1px solid var(--mm-cat, var(--text-faint));
   color: var(--mm-cat, var(--text-muted));
 }
-.mm-note-open {
+.mm-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-top: 10px;
+}
+
+.mm-note-props {
+  margin: 4px 0 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.mm-note-props-title {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 9.5px;
+  margin-bottom: 6px;
+}
+.mm-note-props table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.mm-note-props th,
+.mm-note-props td {
+  padding: 4px 8px;
+  border-top: 1px solid var(--background-modifier-border);
+  vertical-align: top;
+}
+.mm-note-props th {
+  width: 34%;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-align: left;
+}
+.mm-note-props td {
+  color: var(--text-normal);
+  word-break: break-word;
 }
 
 /* linked nodes: parents + children, click to jump the dialog */
@@ -340,5 +390,130 @@
 }
 
 .mm-note {
-  padding-top: 4px;
+  padding: 8px 0 12px;
+}
+.mm-note > :first-child {
+  margin-top: 0;
+}
+.mm-note > :last-child {
+  margin-bottom: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* ponytail: subtree toggles redraw the SVG tree, so CSS can animate entering opacity/scale and any persistent geometry only. */
+  .mm-chip,
+  .mm-toolbar button,
+  .mm-link-row {
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease;
+  }
+
+  .mm-link,
+  .mm-node {
+    transition:
+      opacity 150ms ease,
+      transform 150ms ease;
+  }
+
+  .mm-node {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .mm-node .mm-box,
+  .mm-toggle circle,
+  .mm-toggle text {
+    transition:
+      fill 150ms ease,
+      stroke 150ms ease,
+      stroke-width 150ms ease,
+      filter 150ms ease,
+      height 150ms ease,
+      y 150ms ease;
+  }
+
+  .modal.mm-modal {
+    animation: mm-modal-in 150ms ease-out both;
+  }
+
+  .modal-container:has(.modal.mm-modal) .modal-bg {
+    animation: mm-modal-bg-in 150ms ease-out both;
+  }
+
+  .modal-container.mod-closing .modal.mm-modal,
+  .modal-container.is-closing .modal.mm-modal {
+    animation: mm-modal-out 150ms ease-in both;
+  }
+
+  .modal-container.mod-closing:has(.modal.mm-modal) .modal-bg,
+  .modal-container.is-closing:has(.modal.mm-modal) .modal-bg {
+    animation: mm-modal-bg-out 150ms ease-in both;
+  }
+
+  @starting-style {
+    .mm-node {
+      opacity: 0;
+      transform: scaleY(0.97);
+    }
+
+    .mm-link {
+      opacity: 0;
+    }
+
+    .modal.mm-modal {
+      opacity: 0;
+      transform: scale(0.985);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mm-wrap *,
+  .modal.mm-modal,
+  .modal-container:has(.modal.mm-modal) .modal-bg {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@keyframes mm-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes mm-modal-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+@keyframes mm-modal-bg-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mm-modal-bg-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }

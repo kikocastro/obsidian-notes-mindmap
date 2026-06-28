@@ -224,7 +224,13 @@ describe("collectNodes — card extraction", () => {
       "now",
       "cross-cutting",
     ]);
+    expect(nodes["c/Note.md"].labelColors).toEqual([
+      AUTO_COLORS[0],
+      AUTO_COLORS[1],
+      AUTO_COLORS[2],
+    ]);
     expect(nodes["c/None.md"].labels).toEqual([]);
+    expect(nodes["c/None.md"].labelColors).toEqual([]);
   });
 });
 

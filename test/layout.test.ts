@@ -278,6 +278,24 @@ describe("orderAndLayout — layout config", () => {
     expect(nodes["g/A.md"].y!).toBe(10); // first card sits at top
     expect(nodes["g/B.md"].y!).toBe(10 + 40 + 5); // next steps by cardHeight + rowGap
   });
+
+  it("adds vertical space for bottom label pills", () => {
+    const cfg: MapCfg = {
+      levels: [
+        {
+          id: "g",
+          from: "g",
+          card: { title: "title", labels: ["kind"] },
+        },
+      ],
+      layout: { cardHeight: 50 },
+    };
+    const { nodes } = layout(cfg, [
+      mk("g/Labeled.md", { title: "Labeled", kind: "driver" }),
+    ]);
+
+    expect(nodes["g/Labeled.md"].h!).toBe(74);
+  });
 });
 
 describe("filterOptions", () => {
