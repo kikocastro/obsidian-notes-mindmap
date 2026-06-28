@@ -3,6 +3,7 @@ import {
   collectNodes,
   buildEdges,
   computeVisible,
+  filterOptions,
   orderAndLayout,
   searchMatch,
   resolveLayout,
@@ -276,6 +277,65 @@ describe("orderAndLayout — layout config", () => {
     const { nodes } = layout(cfg, solo);
     expect(nodes["g/A.md"].y!).toBe(10); // first card sits at top
     expect(nodes["g/B.md"].y!).toBe(10 + 40 + 5); // next steps by cardHeight + rowGap
+  });
+});
+
+describe("filterOptions", () => {
+  it("orders each property's values by first node layout position, not alphabetically", () => {
+    const cfg: MapCfg = {
+      levels: [
+        { id: "outcomes", from: "o", card: { title: "title" } },
+        { id: "drivers", from: "d", card: { title: "title" } },
+      ],
+      edges: [{ from: "outcomes", to: "drivers", via: "outcome" }],
+      filter: ["entity"],
+    };
+    const notes = [
+      mk("o/North Star.md", { title: "North Star", entity: "north star" }),
+      mk("d/Activation.md", {
+        title: "Activation",
+        outcome: "[[North Star]]",
+        entity: "driver",
+      }),
+      mk("d/Adoption.md", {
+        title: "Adoption",
+        outcome: "[[North Star]]",
+        entity: "adoption",
+      }),
+    ];
+    const { nodes, byLevel } = collectNodes(cfg, notes);
+    buildEdges(cfg, nodes, byLevel, resolverFor(notes));
+    const vis = computeVisible(nodes, new Set(), {}, cfg);
+    orderAndLayout(cfg, nodes, byLevel, vis);
+
+    expect(filterOptions(nodes, cfg).entity).toEqual([
+      "north star",
+      "driver",
+      "adoption",
+    ]);
+  });
+
+  it("uses the earliest laid-out node carrying a repeated value", () => {
+    const cfg: MapCfg = {
+      levels: [
+        { id: "goals", from: "g", card: { title: "title" } },
+        { id: "projects", from: "p", card: { title: "title" } },
+      ],
+      edges: [{ from: "goals", to: "projects", via: "goal" }],
+      filter: ["status"],
+    };
+    const notes = [
+      mk("g/G1.md", { title: "G1", status: "zeta" }),
+      mk("g/G2.md", { title: "G2", status: "beta" }),
+      mk("p/Child.md", { title: "Child", goal: "[[G2]]", status: "alpha" }),
+      mk("p/Repeat.md", { title: "Repeat", goal: "[[G1]]", status: "beta" }),
+    ];
+    const { nodes, byLevel } = collectNodes(cfg, notes);
+    buildEdges(cfg, nodes, byLevel, resolverFor(notes));
+    const vis = computeVisible(nodes, new Set(), {}, cfg);
+    orderAndLayout(cfg, nodes, byLevel, vis);
+
+    expect(filterOptions(nodes, cfg).status).toEqual(["zeta", "beta", "alpha"]);
   });
 });
 

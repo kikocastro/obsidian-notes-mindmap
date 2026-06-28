@@ -531,6 +531,31 @@ export function orderAndLayout(
   return { order, levelX, contentBottom, contentRight };
 }
 
+export function filterOptions(
+  nodes: Record<string, MNode>,
+  cfg: MapCfg
+): Record<string, string[]> {
+  const ordered = Object.values(nodes).sort(
+    (a, b) =>
+      a.levelIdx - b.levelIdx ||
+      (a.y ?? Number.POSITIVE_INFINITY) - (b.y ?? Number.POSITIVE_INFINITY) ||
+      a.collIdx - b.collIdx ||
+      a.id.localeCompare(b.id)
+  );
+
+  const options: Record<string, string[]> = {};
+  (cfg.filter || []).forEach((prop) => {
+    const seen = new Set<string>();
+    ordered.forEach((n) => {
+      fieldArr(n.fm, prop).forEach((value) => {
+        if (!seen.has(value)) seen.add(value);
+      });
+    });
+    options[prop] = [...seen];
+  });
+  return options;
+}
+
 // ---- search --------------------------------------------------------------
 
 // case-insensitive match across title + sub + meta; empty term matches everything
