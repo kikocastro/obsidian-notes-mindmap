@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import * as yaml from "js-yaml";
+import { parse as parseYaml } from "yaml";
 import {
   MapCfg,
   NoteLike,
@@ -48,12 +48,11 @@ async function openMap(context: vscode.ExtensionContext) {
   }
   let cfg: MapCfg;
   try {
-    cfg = yaml.load(block) as MapCfg;
+    cfg = parseYaml(block) as MapCfg;
     validateConfig(cfg);
-  } catch (e: any) {
-    vscode.window.showErrorMessage(
-      "Markdown Mindmap config error: " + (e?.message || String(e))
-    );
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    vscode.window.showErrorMessage("Markdown Mindmap config error: " + message);
     return;
   }
 
@@ -66,8 +65,8 @@ async function openMap(context: vscode.ExtensionContext) {
   const fsPathByRel: Record<string, string> = {};
   for (const uri of uris) {
     const rel = vscode.workspace.asRelativePath(uri, false);
-    const text = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString(
-      "utf8"
+    const text = new TextDecoder("utf8").decode(
+      await vscode.workspace.fs.readFile(uri)
     );
     notes.push({
       path: rel,
@@ -81,7 +80,9 @@ async function openMap(context: vscode.ExtensionContext) {
   const resolver: Resolver = (key) => {
     const hit = notes.find(
       (n) =>
-        n.basename === key || String(n.frontmatter.title ?? "").trim() === key
+        n.basename === key ||
+        (typeof n.frontmatter.title === "string" &&
+          n.frontmatter.title.trim() === key)
     );
     return hit ? hit.path : null;
   };
@@ -162,9 +163,10 @@ async function openMap(context: vscode.ExtensionContext) {
     vscode.Uri.joinPath(context.extensionUri, "dist", "webview.js")
   );
   panel.webview.html = htmlShell(panel.webview, scriptUri, payload);
-  panel.webview.onDidReceiveMessage((msg) => {
+  panel.webview.onDidReceiveMessage((msg: { type?: string; path?: string }) => {
     if (
-      msg?.type === "open" &&
+      msg.type === "open" &&
+      typeof msg.path === "string" &&
       Object.prototype.hasOwnProperty.call(fsPathByRel, msg.path)
     ) {
       vscode.window.showTextDocument(vscode.Uri.file(fsPathByRel[msg.path]), {
@@ -181,12 +183,12 @@ function extractMindmapBlock(md: string): string | null {
 }
 
 // leading --- ... --- YAML frontmatter, or {} when absent/invalid
-function parseFrontmatter(text: string): Record<string, any> {
+function parseFrontmatter(text: string): Record<string, unknown> {
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) return {};
   try {
-    const fm = yaml.load(m[1]);
-    return fm && typeof fm === "object" ? (fm as Record<string, any>) : {};
+    const fm: unknown = parseYaml(m[1]);
+    return fm && typeof fm === "object" ? (fm as Record<string, unknown>) : {};
   } catch {
     return {};
   }
@@ -229,7 +231,7 @@ function htmlShell(
 <body>
 <div id="stage"><svg></svg></div>
 <script nonce="${nonce}">window.__mmPayload = ${data};</script>
-<script nonce="${nonce}" src="${scriptUri}"></script>
+<script nonce="${nonce}" src="${scriptUri.toString()}"></script>
 </body>
 </html>`;
 }

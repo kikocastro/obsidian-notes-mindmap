@@ -18,13 +18,22 @@ export default tseslint.config(
   ...tseslint.configs.recommendedTypeChecked,
   ...obsidianmd.configs.recommended,
   {
-    files: ["src/graph.ts", "src/obsidian/**/*.ts"],
+    files: ["src/**/*.ts"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
+    },
+  },
+  {
+    // VS Code adapter: obsidian-specific DOM rules don't apply (no activeDocument
+    // / createEl in a VS Code webview). ponytail: only the rules that misfire here.
+    files: ["src/vscode/**/*.ts"],
+    rules: {
+      "obsidianmd/prefer-active-doc": "off",
+      "obsidianmd/prefer-create-el": "off",
     },
   }
 );

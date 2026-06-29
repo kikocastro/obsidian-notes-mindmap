@@ -1,7 +1,7 @@
 {
   "name": "markdown-mindmap",
   "displayName": "Markdown Mindmap",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Configurable mind maps / leveled trees from note frontmatter links. Obsidian plugin + VS Code extension over one shared core.",
   "main": "dist/extension.js",
   "engines": {
@@ -36,7 +36,6 @@
   ],
   "license": "MIT",
   "devDependencies": {
-    "@types/js-yaml": "^4.0.9",
     "@types/node": "26.0.1",
     "@types/vscode": "^1.125.0",
     "@vitest/coverage-v8": "4.1.9",
@@ -44,12 +43,12 @@
     "eslint": "^10.6.0",
     "eslint-plugin-obsidianmd": "^0.3.0",
     "husky": "^9.1.7",
-    "js-yaml": "^5.2.0",
-    "lint-staged": "^17.0.8",
+    "nano-staged": "^1.0.2",
     "obsidian": "1.13.1",
     "prettier": "^3.9.1",
     "typescript": "6.0.3",
     "typescript-eslint": "^8.62.0",
-    "vitest": "4.1.9"
+    "vitest": "4.1.9",
+    "yaml": "^2.9.0"
   }
 }
