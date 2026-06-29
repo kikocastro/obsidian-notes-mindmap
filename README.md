@@ -1,6 +1,6 @@
 # Markdown Mindmap
 
-[![coverage](https://raw.githubusercontent.com/kikocastro/markdown-mindmap/gh-pages/badge.svg)](https://github.com/kikocastro/markdown-mindmap/actions/workflows/test.yml)
+[![coverage](https://raw.githubusercontent.com/kikocastro/markdown-mindmap/gh-pages/badges/coverage.svg)](https://github.com/kikocastro/markdown-mindmap/actions/workflows/test.yml)
 
 An [Obsidian](https://obsidian.md) plugin that renders configurable mind maps (leveled, left-to-right trees) **live from your notes' frontmatter links**. Each map is a single fenced ` ```mindmap ` code block, so you can drop as many maps as you like anywhere in your vault. There is no separate data file to keep in sync: the tree is rebuilt from your notes every time you open it.
 
