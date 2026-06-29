@@ -679,3 +679,135 @@ export const searchMatch = (n: MNode, term: string): boolean =>
 // ponytail: multiple mindmap blocks in one note share this path; later exports overwrite.
 export const mindmapExportPath = (notePath: string): string =>
   notePath.replace(/\.md$/i, "") + " mindmap.html";
+
+// ---- Excalidraw export ---------------------------------------------------
+
+// Minimal geometry the builder needs; both adapters already have it.
+export interface ExNode {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  color: string;
+  text: string;
+}
+export interface ExEdge {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+}
+
+// Pure data->data builder for an Excalidraw v2 file. Each node becomes a
+// rounded rectangle with a bound (centered) text label; each edge a straight
+// arrow. ids are deterministic (test-stable); seeds are constant (Excalidraw
+// tolerates duplicates). v1 is lossy by design:
+// ponytail: straight arrows (no bezier), no arrow<->box bindings, no label
+// pills / progress bars / column headers. Add bindings + decorations later.
+export const mapToExcalidraw = (
+  nodes: ExNode[],
+  edges: ExEdge[]
+): {
+  type: "excalidraw";
+  version: 2;
+  source: string;
+  elements: Record<string, unknown>[];
+  appState: Record<string, unknown>;
+  files: Record<string, unknown>;
+} => {
+  let n = 0;
+  const id = () => "mm-" + n++;
+  const base = (i: number) => ({
+    angle: 0,
+    backgroundColor: "transparent",
+    fillStyle: "solid",
+    strokeWidth: 2,
+    strokeStyle: "solid",
+    roughness: 1,
+    opacity: 100,
+    groupIds: [],
+    frameId: null,
+    seed: 1 + i,
+    version: 1,
+    versionNonce: 1 + i,
+    isDeleted: false,
+    updated: 1,
+    link: null,
+    locked: false,
+  });
+
+  const elements: Record<string, unknown>[] = [];
+  nodes.forEach((node, i) => {
+    const rectId = id();
+    const textId = id();
+    elements.push({
+      ...base(i),
+      id: rectId,
+      type: "rectangle",
+      x: node.x,
+      y: node.y,
+      width: node.w,
+      height: node.h,
+      strokeColor: node.color,
+      roundness: { type: 3 },
+      boundElements: [{ type: "text", id: textId }],
+    });
+    elements.push({
+      ...base(i),
+      id: textId,
+      type: "text",
+      x: node.x,
+      y: node.y,
+      width: node.w,
+      height: node.h,
+      strokeColor: "#1e1e1e",
+      roundness: null,
+      boundElements: [],
+      text: node.text,
+      originalText: node.text,
+      fontSize: 16,
+      fontFamily: 1,
+      textAlign: "center",
+      verticalAlign: "middle",
+      lineHeight: 1.25,
+      containerId: rectId,
+    });
+  });
+  edges.forEach((e, i) => {
+    elements.push({
+      ...base(nodes.length + i),
+      id: id(),
+      type: "arrow",
+      x: e.x1,
+      y: e.y1,
+      width: e.x2 - e.x1,
+      height: e.y2 - e.y1,
+      strokeColor: e.color,
+      roundness: { type: 2 },
+      boundElements: [],
+      points: [
+        [0, 0],
+        [e.x2 - e.x1, e.y2 - e.y1],
+      ],
+      lastCommittedPoint: null,
+      startBinding: null,
+      endBinding: null,
+      startArrowhead: null,
+      endArrowhead: "arrow",
+    });
+  });
+
+  return {
+    type: "excalidraw",
+    version: 2,
+    source: "markdown-mindmap",
+    elements,
+    appState: { gridSize: null, viewBackgroundColor: "#ffffff" },
+    files: {},
+  };
+};
+
+// Excalidraw export destination: sibling of the note, ".md" -> ".excalidraw".
+export const mindmapExcalidrawPath = (notePath: string): string =>
+  notePath.replace(/\.md$/i, "") + " mindmap.excalidraw";

@@ -39,6 +39,8 @@ import {
   subWidth,
   validateConfig,
   mindmapExportPath,
+  mindmapExcalidrawPath,
+  mapToExcalidraw,
 } from "../graph";
 
 // ============================================================================
@@ -308,6 +310,13 @@ function renderMindmap(
     attr: { title: "Save this map as a standalone .html next to the note" },
   });
   exportBtn.onclick = exportHtml;
+  const exportExBtn = foot.createEl("button", {
+    text: "Export Excalidraw",
+    attr: {
+      title: "Save this map as an editable .excalidraw next to the note",
+    },
+  });
+  exportExBtn.onclick = exportExcalidraw;
   const fsBtn = foot.createEl("button", {
     text: "Fullscreen",
     attr: { title: "Fullscreen" },
@@ -954,6 +963,48 @@ function renderMindmap(
 
     const path = mindmapExportPath(ctx.sourcePath);
     void app.vault.adapter.write(path, html).then(
+      () => new Notice("Exported to " + path),
+      (e: unknown) =>
+        new Notice(
+          "Export failed: " + (e instanceof Error ? e.message : String(e))
+        )
+    );
+  }
+
+  // Export the current map as an editable .excalidraw (v2 JSON) next to the
+  // note. Reuses the geometry draw() just laid out and the edges it drew
+  // (`links`); the pure builder in graph.ts does the element mapping.
+  // ponytail: copies the current collapse/filter/titles state, like Export HTML.
+  function exportExcalidraw() {
+    const baseVis = computeVisible(nodes, collapsed, filters, cfg);
+    const focusVis = focusVisible(nodes, focused);
+    const vis = focused
+      ? new Set([...baseVis].filter((id) => focusVis.has(id)))
+      : baseVis;
+    const exNodes = Object.values(nodes)
+      .filter((n) => vis.has(n.id))
+      .map((n) => ({
+        x: n.x!,
+        y: n.y!,
+        w: n.w!,
+        h: n.h!,
+        color: n.color,
+        text: !titleOnly && n.sub ? n.title + "\n" + n.sub : n.title,
+      }));
+    const exEdges = links.map(({ a, b }) => {
+      const p = nodes[a],
+        c = nodes[b];
+      return {
+        x1: p.x! + p.w!,
+        y1: p.y! + p.h! / 2,
+        x2: c.x!,
+        y2: c.y! + c.h! / 2,
+        color: p.color,
+      };
+    });
+    const json = JSON.stringify(mapToExcalidraw(exNodes, exEdges), null, 2);
+    const path = mindmapExcalidrawPath(ctx.sourcePath);
+    void app.vault.adapter.write(path, json).then(
       () => new Notice("Exported to " + path),
       (e: unknown) =>
         new Notice(
