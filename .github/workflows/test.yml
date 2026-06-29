@@ -21,3 +21,14 @@ jobs:
       - name: Update coverage badge
         if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         uses: we-cli/coverage-badge-action@main
+
+  # ponytail: native GHSA-backed scan (includes malware advisories), PRs only.
+  # Upgrade to Socket if you want behavioral npm-malware detection.
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@v4
