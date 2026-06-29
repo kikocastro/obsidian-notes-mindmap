@@ -140,7 +140,7 @@ filter: [status]
 - **filterLabels** — rename a filter group's heading
 - **layout** — override card/column sizing
 - **properties: true** — show all frontmatter in the note dialog
-- **views** — saved filter selections (managed by the toolbar)
+- **views** — saved filter + collapse selections (managed by the toolbar)
 
 ### Each level
 - **id** (required) — referenced by edges
@@ -168,7 +168,8 @@ Field values are frontmatter property names; dotted paths work everywhere (\`cus
 ### Interactions
 - **Search** — spotlight matching cards, dim the rest
 - **Filter chips** — multi-select per property (OR within, AND across)
-- **Saved views** — save / apply / edit / delete a filter combination
+- **Saved views** — save / apply / edit / delete a filter combination; each view also remembers which subtrees are collapsed
+- **Export** — save the current map next to the note as a standalone **HTML** file or an editable **Excalidraw** drawing
 - **Hover** a card — highlight its full up/down lineage
 - **Click** a card — dialog with its linked parents, siblings, and children (click to jump), properties, and the rendered note
 - **Focus** (from the dialog) — show a node, its ancestors, and primary descendants; persists until you click empty map space to clear

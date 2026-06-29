@@ -27,7 +27,8 @@ It ships as **two adapters over one shared core** (`src/graph.ts`): the **Obsidi
 - **Edges from links.** A `[[wikilink]]`, plain title, basename, list, or nested field (`customFields.serves`) on either end of an edge.
 - **Secondary (dashed) links.** Mark cross-links that should draw dashed and stay out of the layout spine (e.g. "also relates to").
 - **Bar charts & progress bars.** Render a 0–100 field as a progress bar, or a list field as a stacked count-by-category bar.
-- **Multi-select filters and saved views.** Toggle-chip filters per property (OR within a property, AND across), then save named filter combinations back into the map block.
+- **Multi-select filters and saved views.** Toggle-chip filters per property (OR within a property, AND across), then save named filter combinations back into the map block. Each saved view also remembers which subtrees are collapsed.
+- **Export.** Save the current map next to the note as a standalone HTML file or an editable Excalidraw drawing.
 - **Search highlight.** A search box that spotlights matching cards and dims the rest.
 - **Collapse / expand** any subtree, focus a node's lineage/subtree, **pan / zoom / fit / fullscreen**; click a card for a dialog with its linked parents/children, optional properties, and the rendered note.
 - **Theme-aware.** Uses Obsidian CSS variables, so it follows your light/dark theme.
@@ -102,7 +103,7 @@ filter: [status]
 | `filterLabels` | map             | Rename a filter group's heading, e.g. `{ customFields.quarters: Quarter }`. Unlisted properties keep their raw name. |
 | `layout`       | map             | Override card/column sizing (below). All keys optional.                                                              |
 | `properties`   | boolean         | When `true`, the note dialog shows all frontmatter as a table above the rendered note.                               |
-| `views`        | list            | Saved filter selections, managed by the toolbar's saved-view controls.                                               |
+| `views`        | list            | Saved filter + collapse selections, managed by the toolbar's saved-view controls.                                    |
 
 **`layout`** (all optional, defaults shown)
 
@@ -190,7 +191,8 @@ filter: [horizon, kind, status]
 
 - **Search** box — spotlight cards matching title / sub / meta, dim the rest.
 - **Filter chips** — multi-select per property (OR within, AND across), with options sorted alphabetically.
-- **Saved views** — save the current filter combination, apply it from the dropdown, edit it, or delete it. Saved views are written to the block's `views:` key.
+- **Saved views** — save the current filter combination, apply it from the dropdown, edit it, or delete it. Each view also stores which subtrees are collapsed, so applying it restores that shape. Saved views are written to the block's `views:` key.
+- **Export** — save the current map next to the note as a standalone `.html` file or an editable `.excalidraw` drawing.
 - **Hover** a card — highlight its full up/down lineage.
 - **Click** a card — open a dialog: title + file name, level badge, progress/demand breakdown, its **linked parents, siblings, and children** (click one to jump the dialog there), optional frontmatter properties, the rendered note, "Open note", and "Focus".
 - **Focus** from a card dialog — show that node, its ancestors, and its primary descendants; click empty map space to clear focus.
