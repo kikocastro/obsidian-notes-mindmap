@@ -697,14 +697,18 @@ export interface ExEdge {
   x2: number;
   y2: number;
   color: string;
+  // node indices into the nodes[] array; when both set the arrow binds to
+  // those rectangles so dragging a node re-routes the arrow in Excalidraw.
+  source?: number;
+  target?: number;
 }
 
 // Pure data->data builder for an Excalidraw v2 file. Each node becomes a
 // rounded rectangle with a bound (centered) text label; each edge a straight
 // arrow. ids are deterministic (test-stable); seeds are constant (Excalidraw
 // tolerates duplicates). v1 is lossy by design:
-// ponytail: straight arrows (no bezier), no arrow<->box bindings, no label
-// pills / progress bars / column headers. Add bindings + decorations later.
+// ponytail: straight arrows (no bezier), no label pills / progress bars /
+// column headers. Arrows bind to boxes when the edge carries source/target.
 export const mapToExcalidraw = (
   nodes: ExNode[],
   edges: ExEdge[]
@@ -738,10 +742,16 @@ export const mapToExcalidraw = (
   });
 
   const elements: Record<string, unknown>[] = [];
+  // rect element per node index, so edges can bind to them after the fact.
+  const rects: { id: string; boundElements: { type: string; id: string }[] }[] =
+    [];
   nodes.forEach((node, i) => {
     const rectId = id();
     const textId = id();
-    elements.push({
+    const boundElements: { type: string; id: string }[] = [
+      { type: "text", id: textId },
+    ];
+    const rect = {
       ...base(i),
       id: rectId,
       type: "rectangle",
@@ -751,8 +761,10 @@ export const mapToExcalidraw = (
       height: node.h,
       strokeColor: node.color,
       roundness: { type: 3 },
-      boundElements: [{ type: "text", id: textId }],
-    });
+      boundElements,
+    };
+    rects[i] = { id: rectId, boundElements };
+    elements.push(rect);
     elements.push({
       ...base(i),
       id: textId,
@@ -775,9 +787,18 @@ export const mapToExcalidraw = (
     });
   });
   edges.forEach((e, i) => {
+    const arrowId = id();
+    const start = e.source != null ? rects[e.source] : undefined;
+    const end = e.target != null ? rects[e.target] : undefined;
+    // focus 0 (box center) + small gap; Excalidraw recomputes exact attach
+    // points on load and on every drag.
+    const bind = (r: typeof start) =>
+      r ? { elementId: r.id, focus: 0, gap: 4 } : null;
+    if (start) start.boundElements.push({ type: "arrow", id: arrowId });
+    if (end) end.boundElements.push({ type: "arrow", id: arrowId });
     elements.push({
       ...base(nodes.length + i),
-      id: id(),
+      id: arrowId,
       type: "arrow",
       x: e.x1,
       y: e.y1,
@@ -791,8 +812,8 @@ export const mapToExcalidraw = (
         [e.x2 - e.x1, e.y2 - e.y1],
       ],
       lastCommittedPoint: null,
-      startBinding: null,
-      endBinding: null,
+      startBinding: bind(start),
+      endBinding: bind(end),
       startArrowhead: null,
       endArrowhead: "arrow",
     });

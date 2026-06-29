@@ -994,16 +994,16 @@ function renderMindmap(
     const vis = focused
       ? new Set([...baseVis].filter((id) => focusVis.has(id)))
       : baseVis;
-    const exNodes = Object.values(nodes)
-      .filter((n) => vis.has(n.id))
-      .map((n) => ({
-        x: n.x!,
-        y: n.y!,
-        w: n.w!,
-        h: n.h!,
-        color: n.color,
-        text: !titleOnly && n.sub ? n.title + "\n" + n.sub : n.title,
-      }));
+    const visNodes = Object.values(nodes).filter((n) => vis.has(n.id));
+    const exIndex = new Map(visNodes.map((n, i) => [n.id, i]));
+    const exNodes = visNodes.map((n) => ({
+      x: n.x!,
+      y: n.y!,
+      w: n.w!,
+      h: n.h!,
+      color: n.color,
+      text: !titleOnly && n.sub ? n.title + "\n" + n.sub : n.title,
+    }));
     const exEdges = links.map(({ a, b }) => {
       const p = nodes[a],
         c = nodes[b];
@@ -1013,6 +1013,8 @@ function renderMindmap(
         x2: c.x!,
         y2: c.y! + c.h! / 2,
         color: p.color,
+        source: exIndex.get(a),
+        target: exIndex.get(b),
       };
     });
     const json = JSON.stringify(mapToExcalidraw(exNodes, exEdges), null, 2);

@@ -84,4 +84,27 @@ describe("mapToExcalidraw", () => {
     const ids = mapToExcalidraw(nodes, edges).elements.map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it("binds an arrow to its source/target rectangles both ways", () => {
+    const bound = [
+      { x1: 100, y1: 20, x2: 200, y2: 20, color: "#f00", source: 0, target: 1 },
+    ];
+    const els = mapToExcalidraw(nodes, bound).elements;
+    const rects = els.filter((e) => e.type === "rectangle");
+    const arrow = els.find((e) => e.type === "arrow")!;
+    expect((arrow.startBinding as { elementId: string }).elementId).toBe(
+      rects[0].id
+    );
+    expect((arrow.endBinding as { elementId: string }).elementId).toBe(
+      rects[1].id
+    );
+    expect(rects[0].boundElements).toContainEqual({
+      type: "arrow",
+      id: arrow.id,
+    });
+    expect(rects[1].boundElements).toContainEqual({
+      type: "arrow",
+      id: arrow.id,
+    });
+  });
 });
