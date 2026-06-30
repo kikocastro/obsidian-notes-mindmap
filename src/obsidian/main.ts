@@ -336,7 +336,7 @@ function renderMindmap(
 
   plugin.registerDomEvent(activeDocument, "fullscreenchange", () => {
     fsBtn.toggleClass("on", activeDocument.fullscreenElement === wrapEl);
-    window.requestAnimationFrame(fit);
+    activeWindow.requestAnimationFrame(fit);
     // left fullscreen with a deferred persist queued -> flush it now
     if (activeDocument.fullscreenElement !== wrapEl && pendingWrite) {
       const cfgToWrite = pendingWrite;
@@ -1043,14 +1043,14 @@ function renderMindmap(
     drag = { x: e.clientX - view.x, y: e.clientY - view.y };
     stage.classList.add("mm-drag");
   });
-  plugin.registerDomEvent(window, "mousemove", (e: MouseEvent) => {
+  plugin.registerDomEvent(activeWindow, "mousemove", (e: MouseEvent) => {
     if (drag) {
       view.x = e.clientX - drag.x;
       view.y = e.clientY - drag.y;
       apply();
     }
   });
-  plugin.registerDomEvent(window, "mouseup", () => {
+  plugin.registerDomEvent(activeWindow, "mouseup", () => {
     drag = null;
     stage.classList.remove("mm-drag");
   });
@@ -1094,5 +1094,5 @@ function renderMindmap(
     draw();
   }
   // first fit after the element has real dimensions
-  window.requestAnimationFrame(fit);
+  activeWindow.requestAnimationFrame(fit);
 }

@@ -55,7 +55,7 @@ class PromptModal extends Modal {
     const row = contentEl.createDiv({ cls: "mm-prompt-actions" });
     row.createEl("button", { text: "Save", cls: "mod-cta" }).onclick = submit;
     row.createEl("button", { text: "Cancel" }).onclick = () => this.close();
-    window.setTimeout(() => {
+    activeWindow.setTimeout(() => {
       input.focus();
       input.select();
     }, 0);

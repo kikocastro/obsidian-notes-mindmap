@@ -9,15 +9,19 @@ on:
 
 permissions:
   contents: write
+  id-token: write # required for build provenance / artifact attestations
+  attestations: write # lets the run record signed attestations for the assets
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      VT_API_KEY: ${{ secrets.VT_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
       - run: npm ci
       - run: npm run build
@@ -28,6 +32,30 @@ jobs:
             echo "Tag ${GITHUB_REF_NAME} != manifest version $manifest_version" >&2
             exit 1
           fi
+      # Signed, verifiable provenance for every release asset. Clears the
+      # "Missing GitHub artifact attestations" finding and lets anyone run
+      # `gh attestation verify <file> -R <owner>/<repo>` against the download.
+      - name: Attest release assets
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
+      # Free malware scan of the release assets. Uses the VirusTotal free API
+      # (set the VT_API_KEY secret from a free virustotal.com account). Clears
+      # the "Malware scan not available" disclosure with a public scan link.
+      - name: Malware scan (VirusTotal)
+        if: env.VT_API_KEY != ''
+        uses: crazy-max/ghaction-virustotal@v4
+        with:
+          vt_api_key: ${{ env.VT_API_KEY }}
+          files: |
+            main.js
+            manifest.json
+            styles.css
+
       - name: Create release with Obsidian assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
